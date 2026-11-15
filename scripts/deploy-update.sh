@@ -66,6 +66,20 @@ ok "代码已更新到 $(git rev-parse --short HEAD)"
 
 step "2/6 安装依赖"
 npm install
+# npm install 可能更新 lock 文件，恢复为仓库版本，避免影响后续 git pull
+git checkout -- package-lock.json 2>/dev/null || true
+# npm/cli#4828：lock 在其他平台生成时缺当前平台 optional 原生依赖（rollup/esbuild），
+# 导致 vite build / tsx 运行报 Cannot find module @rollup/rollup-linux-x64-gnu 等
+if [ "$(uname -s)" = "Linux" ]; then
+  MISSING_PKGS=""
+  [ -d node_modules/@rollup/rollup-linux-x64-gnu ] || MISSING_PKGS="$MISSING_PKGS @rollup/rollup-linux-x64-gnu@$(node -p "require('./node_modules/rollup/package.json').version")"
+  [ -d node_modules/@esbuild/linux-x64 ] || MISSING_PKGS="$MISSING_PKGS @esbuild/linux-x64@$(node -p "require('./node_modules/esbuild/package.json').version")"
+  if [ -n "$MISSING_PKGS" ]; then
+    warn "检测到缺失的 Linux 原生模块，补装:$MISSING_PKGS"
+    npm install --no-save $MISSING_PKGS
+    ok "Linux 原生模块已补齐"
+  fi
+fi
 ok "依赖就绪（postinstall 已自动执行 prisma generate）"
 
 step "3/6 备份数据库"
