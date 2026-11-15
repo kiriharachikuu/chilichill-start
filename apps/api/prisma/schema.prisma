@@ -1,0 +1,317 @@
+// Prisma 7：新生成器，产物为纯 TypeScript ESM（写入 src/generated/prisma，不入库）
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  runtime                = "nodejs"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+// SQLite 不支持 enum，所有枚举以 String 存储，取值由 @spaceport/shared 约束。
+
+model User {
+  id           String       @id @default(cuid())
+  // 6 位纯数字 uid，从 100001 递增，用于个人空间地址 /space/:uid（注册时分配，历史数据由迁移回填）
+  uid          Int?         @unique
+  email        String       @unique
+  nickname     String
+  avatarUrl    String?
+  bio          String?
+  province     String?
+  city         String?
+  passwordHash String
+  role         String       @default("USER")
+  createdAt    DateTime     @default(now())
+  submissions  Submission[] @relation("Submitter")
+  reviewed     Submission[] @relation("Reviewer")
+  groups       Group[]      @relation("GroupUploader")
+  sites        Site[]       @relation("SiteUploader")
+  galleryImages GalleryImage[] @relation("GalleryUploader")
+  galleryLikes   GalleryLike[]  @relation("GalleryLikes")
+  galleryComments GalleryComment[] @relation("GalleryComments")
+  commentReports  CommentReport[]  @relation("CommentReporter")
+  reportsHandled  CommentReport[]  @relation("ReportHandler")
+  auditLogs       AdminAuditLog[]  @relation("AuditActor")
+  settingsUpdated SystemSetting[]  @relation("SettingUpdater")
+}
+
+model Group {
+  id          String      @id @default(cuid())
+  name        String
+  groupNumber String      @unique
+  type        String
+  city        String?
+  province    String?
+  school      String?
+  regionCode  String?
+  regionName  String?
+  description String
+  purpose     String?
+  joinUrl     String?
+  qrcodeUrl   String?
+  avatarUrl   String?
+  uploader    User?       @relation("GroupUploader", fields: [uploaderId], references: [id])
+  uploaderId  String?
+  published   Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tags        GroupTag[]
+  submissions Submission[]
+
+  @@index([published, regionCode])
+  @@index([published, createdAt])
+  @@index([type])
+  @@index([uploaderId])
+}
+
+model Site {
+  id          String      @id @default(cuid())
+  title       String
+  url         String      @unique
+  description String
+  coverUrl    String?
+  uploader    User?       @relation("SiteUploader", fields: [uploaderId], references: [id])
+  uploaderId  String?
+  published   Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  tags        SiteTag[]
+  submissions Submission[]
+
+  @@index([published, createdAt])
+  @@index([uploaderId])
+}
+
+model Tag {
+  id        String       @id @default(cuid())
+  name      String
+  slug      String       @unique
+  scope     String       @default("GROUP")
+  color     String       @default("#FFB454")
+  kind      String?
+  sortOrder Int          @default(0)
+  createdAt DateTime     @default(now())
+  groups    GroupTag[]
+  sites     SiteTag[]
+  autoRules AutoTagRule[]
+}
+
+model GroupTag {
+  groupId String
+  tagId   String
+  group   Group  @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  tag     Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, tagId])
+}
+
+model SiteTag {
+  siteId String
+  tagId  String
+  site   Site   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  tag    Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([siteId, tagId])
+}
+
+// 站方策划的历届活动（生日会、纪念贺图等）：后台维护，首页「活动看板」展示。
+// linkUrl 配置后卡片直达外链；否则进站内详情页（contentHtml 自定义页优先，缺省用固定模板）。
+model Activity {
+  id          String    @id @default(cuid())
+  title       String
+  coverUrl    String?
+  description String?
+  linkUrl     String?
+  contentHtml String?
+  startDate   DateTime?
+  endDate     DateTime?
+  published   Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([published, sortOrder, startDate])
+}
+
+// 画廊作品：后台上传或粉丝投稿审核通过后展示，粉丝可点赞与评论。
+// mediaType 区分「绘画 PAINTING」与「摄影 PHOTOGRAPHY」；tags 存 JSON 字符串数组。
+model GalleryImage {
+  id          String   @id @default(cuid())
+  imageUrl    String
+  title       String?
+  mediaType   String?
+  imageWidth  Int?
+  imageHeight Int?
+  description String?
+  tags        String   @default("[]")
+  uploader    User?    @relation("GalleryUploader", fields: [uploaderId], references: [id])
+  uploaderId  String?
+  published   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  likes       GalleryLike[]
+  comments    GalleryComment[]
+
+  @@index([published, createdAt])
+  @@index([published, mediaType])
+  @@index([uploaderId])
+}
+
+// 点赞：一个用户对一张图只记一次，重复点赞走 toggle 取消。
+model GalleryLike {
+  id        String       @id @default(cuid())
+  image     GalleryImage @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  imageId   String
+  user      User         @relation("GalleryLikes", fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  createdAt DateTime     @default(now())
+
+  @@unique([imageId, userId])
+  @@index([userId])
+}
+
+model GalleryComment {
+  id        String          @id @default(cuid())
+  image     GalleryImage    @relation(fields: [imageId], references: [id], onDelete: Cascade)
+  imageId   String
+  user      User            @relation("GalleryComments", fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  content   String
+  createdAt DateTime        @default(now())
+  reports   CommentReport[]
+
+  @@index([imageId, createdAt])
+  @@index([userId])
+}
+
+model Submission {
+  id            String    @id @default(cuid())
+  entityType    String
+  mode          String    @default("CREATE")
+  // 通用目标 id，审核时按 entityType 解析到 groupTargetId / siteTargetId
+  targetId      String?
+  payload       String
+  status        String    @default("PENDING")
+  reviewNote    String?
+  submitterId   String
+  reviewerId    String?
+  createdAt     DateTime  @default(now())
+  reviewedAt    DateTime?
+  groupTargetId String?
+  siteTargetId  String?
+  submitter     User      @relation("Submitter", fields: [submitterId], references: [id])
+  reviewer      User?     @relation("Reviewer", fields: [reviewerId], references: [id])
+  group         Group?    @relation(fields: [groupTargetId], references: [id])
+  site          Site?     @relation(fields: [siteTargetId], references: [id])
+
+  @@index([status, entityType])
+  @@index([submitterId])
+}
+
+model CityRegionRule {
+  id         String  @id @default(cuid())
+  city       String  @unique
+  regionCode String
+  regionName String
+  province   String?
+  sortOrder  Int     @default(0)
+}
+
+model AutoTagRule {
+  id       String @id @default(cuid())
+  keyword  String
+  tagId    String
+  scope    String @default("GROUP")
+  priority Int    @default(0)
+  tag      Tag    @relation(fields: [tagId], references: [id], onDelete: Cascade)
+}
+
+// 评论举报：登录用户对非本人评论发起举报，进入人工审核队列。
+// commentContent/commentUserId 冗余快照，评论被删除后仍可回溯。
+// @@unique(commentId, reporterId) 防止同一用户对同一评论重复举报。
+model CommentReport {
+  id                  String          @id @default(cuid())
+  comment             GalleryComment? @relation(fields: [commentId], references: [id], onDelete: SetNull)
+  commentId           String?
+  commentContent      String
+  commentUserId       String?
+  commentUserNickname String?
+  reporter            User      @relation("CommentReporter", fields: [reporterId], references: [id])
+  reporterId          String
+  reason              String
+  status              String    @default("PENDING")
+  handledAt           DateTime?
+  handledBy           User?     @relation("ReportHandler", fields: [handledById], references: [id])
+  handledById         String?
+  createdAt           DateTime  @default(now())
+
+  @@unique([commentId, reporterId])
+  @@index([status, createdAt])
+  @@index([reporterId])
+}
+
+// 后台敏感操作日志（如站长调整用户组），仅供审计查询。
+model AdminAuditLog {
+  id            String   @id @default(cuid())
+  actor         User     @relation("AuditActor", fields: [actorId], references: [id])
+  actorId       String
+  actorNickname String
+  action        String
+  targetType    String
+  targetId      String?
+  detail        String   @default("{}")
+  createdAt     DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([targetType, targetId])
+}
+
+// 注册邮箱验证码：同一邮箱只保留一条记录，重发会覆盖旧验证码并重置错误次数。
+// 只存验证码的 SHA-256 摘要，过期时间、发送冷却与小时配额由服务层校验。
+model EmailVerificationCode {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  codeHash        String
+  expiresAt       DateTime
+  lastSentAt      DateTime
+  sendWindowStart DateTime  @default(now())
+  sendCount       Int       @default(1)
+  failedAttempts  Int       @default(0)
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([expiresAt])
+}
+
+// 密码重置验证码：结构与 EmailVerificationCode 一致，但独立成表，
+// 避免与注册验证码互相覆盖（同一邮箱可同时存在注册码与重置码）。
+// 只存验证码的 SHA-256 摘要；重置成功后 consumedAt 置位，一次性使用。
+model PasswordResetCode {
+  id              String    @id @default(cuid())
+  email           String    @unique
+  codeHash        String
+  expiresAt       DateTime
+  lastSentAt      DateTime
+  sendWindowStart DateTime  @default(now())
+  sendCount       Int       @default(1)
+  failedAttempts  Int       @default(0)
+  consumedAt      DateTime?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([expiresAt])
+}
+
+// 系统全局设置（key-value），当前用于存储模式配置，保存后即时生效。
+model SystemSetting {
+  key         String   @id
+  value       String
+  updatedAt   DateTime @updatedAt
+  updatedBy   User?    @relation("SettingUpdater", fields: [updatedById], references: [id])
+  updatedById String?
+}

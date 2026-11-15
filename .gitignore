@@ -1,0 +1,26 @@
+node_modules/
+dist/
+*.log
+
+# 临时设计草稿（brainstorm 产物，不入库）
+.superpowers/
+
+# 本地 SQLite 数据库
+apps/api/prisma/dev.db
+apps/api/prisma/dev.db-journal
+
+# Prisma 7 生成客户端（由 postinstall / prisma generate 产出）
+apps/api/src/generated/
+
+# 本地上传目录（保留占位文件）
+apps/api/public/uploads/*
+!apps/api/public/uploads/.gitkeep
+
+# 环境变量一律不入库（含本地密钥与连接串），模板见各 .env.example
+.env
+.env.*
+!.env.example
+*.local
+
+# 私钥与证书
+*.pem

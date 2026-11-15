@@ -1,0 +1,711 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>厚嘴唇空间站 · 视觉设计规范 V2</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,600;0,9..144,700;1,9..144,500&family=Space+Mono:wght@400;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Serif+SC:wght@500;700&display=swap" rel="stylesheet">
+<style>
+/* ============================================================
+   设计令牌（与本规范正文展示一致，也是后续前端实现的依据）
+   ============================================================ */
+:root{
+  /* 深空墨层 */
+  --void:    #04050D;   /* 最底层 */
+  --space-1: #070A18;   /* 页面底 */
+  --space-2: #0C1126;   /* 抬升面 */
+  --space-3: #141B3A;   /* 卡片 */
+  --space-4: #1F2A52;   /* 悬浮/弹层 */
+  --line:    rgba(233,236,255,.10);
+  --line-strong: rgba(233,236,255,.18);
+
+  /* 文字 */
+  --ink:    #ECEEFF;
+  --ink-2:  #B6BEDD;
+  --ink-3:  #8B94B8;
+  --ink-4:  #5E6688;
+
+  /* 信号色（全站仅 4 个信号色 + 琥珀主调） */
+  --amber:  #F5A63B;   /* 主信号：指引/主按钮/星点 */
+  --amber-hi:#FFC778;
+  --coral:  #F06A4E;   /* 警示/退出/驳回 */
+  --aurora: #7E9BFF;   /* 信息/链接/控制舱 */
+  --mint:   #5FD9B8;   /* 成功/在线 */
+
+  /* 字体 */
+  --font-display:"Fraunces","Noto Serif SC",serif;
+  --font-body:"Noto Sans SC","PingFang SC","Microsoft YaHei",sans-serif;
+  --font-mono:"Space Mono","Noto Sans SC",monospace;
+
+  /* 间距 4px 基准 */
+  --s-1:4px; --s-2:8px; --s-3:12px; --s-4:16px; --s-5:20px;
+  --s-6:24px; --s-8:32px; --s-10:40px; --s-12:48px; --s-16:64px; --s-20:80px;
+
+  /* 圆角 */
+  --r-xs:6px; --r-sm:10px; --r-md:14px; --r-lg:20px; --r-xl:28px; --r-full:999px;
+
+  /* 动效 */
+  --ease-out:cubic-bezier(.22,1,.36,1);
+  --ease-spring:cubic-bezier(.34,1.56,.64,1);
+  --t-fast:.16s; --t-base:.28s; --t-slow:.5s; --t-cinematic:.9s;
+
+  /* 投影 */
+  --shadow-card:0 20px 50px -18px rgba(2,4,16,.75);
+  --shadow-glow:0 0 0 1px rgba(245,166,59,.25), 0 8px 30px -6px rgba(245,166,59,.28);
+}
+
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  background:var(--space-1);
+  color:var(--ink);
+  font-family:var(--font-body);
+  line-height:1.7;
+  -webkit-font-smoothing:antialiased;
+  overflow-x:hidden;
+}
+body::before{
+  content:"";position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+    radial-gradient(60% 45% at 12% 0%, rgba(126,155,255,.16), transparent 60%),
+    radial-gradient(50% 40% at 90% 8%, rgba(176,124,255,.12), transparent 60%),
+    radial-gradient(55% 45% at 50% 105%, rgba(240,106,78,.12), transparent 60%),
+    linear-gradient(180deg,#070A18 0%, #04050D 70%);
+}
+/* 噪点颗粒 */
+body::after{
+  content:"";position:fixed;inset:0;z-index:1;pointer-events:none;opacity:.05;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+
+/* ---------- 排版 ---------- */
+.wrap{position:relative;z-index:2;max-width:1120px;margin:0 auto;padding:0 24px}
+h1,h2,h3{font-family:var(--font-display);line-height:1.15;letter-spacing:.01em}
+.d-hero{font-size:clamp(40px,7vw,76px);font-weight:700}
+.d-1{font-size:clamp(28px,4vw,40px);font-weight:600}
+.d-2{font-size:22px;font-weight:600}
+.d-3{font-size:17px;font-weight:600}
+.eyebrow{
+  font-family:var(--font-mono);font-size:11px;letter-spacing:.32em;
+  text-transform:uppercase;color:var(--amber);
+}
+.mono{font-family:var(--font-mono)}
+.muted{color:var(--ink-3)}
+.lead{font-size:17px;color:var(--ink-2);max-width:60ch}
+small.code{font-family:var(--font-mono);font-size:11px;color:var(--ink-4)}
+
+/* ---------- Hero ---------- */
+.hero{padding:96px 0 72px;position:relative}
+.hero .badge{
+  display:inline-flex;align-items:center;gap:8px;
+  border:1px solid rgba(95,217,184,.35);background:rgba(95,217,184,.08);
+  color:var(--mint);border-radius:var(--r-full);
+  padding:6px 14px;font-family:var(--font-mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;
+}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--mint);animation:pulse 2.4s ease-in-out infinite}
+.hero h1{margin:24px 0 8px;background:linear-gradient(100deg,#FFC778 0%,#F5A63B 30%,#F06A4E 62%,#7E9BFF 100%);-webkit-background-clip:text;background-clip:text;color:transparent}
+.hero .sub{font-family:var(--font-display);font-style:italic;font-size:20px;color:var(--ink-2);margin-bottom:20px}
+.meta-row{display:flex;flex-wrap:wrap;gap:24px;margin-top:32px;font-family:var(--font-mono);font-size:12px;color:var(--ink-3)}
+.meta-row span{display:flex;align-items:center;gap:8px}
+.meta-row i{width:5px;height:5px;border-radius:50%;display:inline-block}
+
+/* ---------- 章节 ---------- */
+section.chapter{padding:72px 0;border-top:1px solid var(--line)}
+.chapter-head{display:flex;align-items:baseline;gap:16px;margin-bottom:40px;flex-wrap:wrap}
+.chapter-num{font-family:var(--font-mono);font-size:12px;color:var(--amber)}
+.chapter-title{font-size:28px;font-weight:600}
+.chapter-desc{flex-basis:100%;color:var(--ink-3);font-size:14px;max-width:70ch}
+
+/* ---------- 色板 ---------- */
+.swatch-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:16px}
+.swatch{border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden;background:var(--space-2)}
+.swatch .c{height:96px;position:relative}
+.swatch .c .tick{position:absolute;right:10px;top:10px;font-family:var(--font-mono);font-size:9px;letter-spacing:.15em;background:rgba(4,5,13,.55);padding:3px 7px;border-radius:99px;color:#fff}
+.swatch .info{padding:12px 14px}
+.swatch .name{font-size:13px;font-weight:500}
+.swatch .hex{font-family:var(--font-mono);font-size:11px;color:var(--ink-3);display:block;margin-top:2px}
+.swatch .use{font-size:11px;color:var(--ink-4);margin-top:6px}
+
+/* ---------- 字体样张 ---------- */
+.type-list{display:flex;flex-direction:column;gap:0;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+.type-row{display:grid;grid-template-columns:130px 1fr;gap:24px;padding:22px 24px;background:var(--space-2);border-bottom:1px solid var(--line);align-items:center}
+.type-row:last-child{border-bottom:0}
+.type-row .tag{font-family:var(--font-mono);font-size:10px;color:var(--ink-4);letter-spacing:.12em;text-transform:uppercase}
+.type-row .sample{color:var(--ink)}
+
+/* ---------- 玻璃卡 / 票据 ---------- */
+.demo-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:20px}
+.panel{
+  position:relative;border-radius:var(--r-lg);padding:24px;
+  background:linear-gradient(160deg,rgba(255,255,255,.07),rgba(255,255,255,.02));
+  border:1px solid var(--line-strong);
+  box-shadow:var(--shadow-card);backdrop-filter:blur(14px);
+}
+.panel::before{ /* 顶部微光描边 */
+  content:"";position:absolute;inset:0;border-radius:inherit;padding:1px;
+  background:linear-gradient(120deg,rgba(255,199,120,.5),transparent 30%,transparent 70%,rgba(126,155,255,.4));
+  -webkit-mask:linear-gradient(#000 0 0) content-box,linear-gradient(#000 0 0);
+  -webkit-mask-composite:xor;mask-composite:exclude;pointer-events:none;
+}
+.panel h4{font-family:var(--font-display);font-size:18px;margin-bottom:6px}
+.panel p{font-size:13px;color:var(--ink-3)}
+
+/* 票根（核心记忆点） */
+.ticket{
+  position:relative;border-radius:var(--r-md);padding:18px 20px 18px 22px;
+  background:linear-gradient(135deg,rgba(245,166,59,.16),rgba(126,155,255,.08));
+  border:1px solid rgba(245,166,59,.35);
+  display:flex;align-items:center;gap:16px;overflow:hidden;
+}
+.ticket::before,.ticket::after{
+  content:"";position:absolute;top:50%;width:18px;height:18px;border-radius:50%;
+  background:var(--space-1);transform:translateY(-50%);
+}
+.ticket::before{left:-9px}
+.ticket::after{right:-9px}
+.ticket .stub{
+  border-left:1.5px dashed rgba(245,166,59,.5);padding-left:16px;
+  font-family:var(--font-mono);font-size:10px;color:var(--amber-hi);letter-spacing:.1em;
+}
+.ticket .t-main{flex:1;min-width:0}
+.ticket .t-main .name{font-weight:600;font-size:14px}
+.ticket .t-main .route{font-family:var(--font-mono);font-size:10px;color:var(--ink-3);margin-top:2px}
+
+/* ---------- 按钮 ---------- */
+.btns{display:flex;flex-wrap:wrap;gap:14px;align-items:center}
+.btn{
+  font-family:var(--font-body);font-size:14px;font-weight:500;
+  border-radius:var(--r-sm);padding:11px 20px;cursor:pointer;border:1px solid transparent;
+  display:inline-flex;align-items:center;gap:8px;
+  transition:transform var(--t-fast) var(--ease-out),box-shadow var(--t-base),background var(--t-base);
+  text-decoration:none;color:var(--ink);
+}
+.btn:active{transform:translateY(1px) scale(.98)}
+.btn-primary{background:linear-gradient(135deg,var(--amber-hi),var(--amber));color:#1A1206;box-shadow:0 6px 20px -6px rgba(245,166,59,.55)}
+.btn-primary:hover{transform:translateY(-2px);box-shadow:0 12px 28px -8px rgba(245,166,59,.7)}
+.btn-secondary{background:rgba(126,155,255,.12);border-color:rgba(126,155,255,.4);color:#C8D4FF}
+.btn-secondary:hover{background:rgba(126,155,255,.2)}
+.btn-ghost{background:transparent;border-color:var(--line-strong);color:var(--ink-2)}
+.btn-ghost:hover{border-color:rgba(245,166,59,.45);color:var(--amber-hi)}
+.btn-danger{background:rgba(240,106,78,.14);border-color:rgba(240,106,78,.45);color:#FF9C85}
+.btn-sm{padding:7px 14px;font-size:13px}
+
+/* ---------- 徽章/标签 ---------- */
+.chips{display:flex;flex-wrap:wrap;gap:10px}
+.chip{
+  font-size:12px;padding:5px 12px;border-radius:var(--r-full);
+  border:1px solid var(--line-strong);background:rgba(255,255,255,.04);color:var(--ink-2);
+  display:inline-flex;align-items:center;gap:6px;
+}
+.chip.amber{border-color:rgba(245,166,59,.45);color:var(--amber-hi);background:rgba(245,166,59,.1)}
+.chip.mint{border-color:rgba(95,217,184,.4);color:var(--mint);background:rgba(95,217,184,.09)}
+.chip.coral{border-color:rgba(240,106,78,.45);color:#FF9C85;background:rgba(240,106,78,.1)}
+.chip.aurora{border-color:rgba(126,155,255,.45);color:#B9C8FF;background:rgba(126,155,255,.1)}
+
+/* ---------- 表单 ---------- */
+.form-demo{display:grid;gap:18px;max-width:520px}
+.field label{display:block;font-size:12px;font-weight:500;color:var(--ink-2);margin-bottom:7px}
+.field label .req{color:var(--coral);margin-left:3px}
+.input{
+  width:100%;background:rgba(4,5,13,.6);border:1px solid var(--line-strong);
+  border-radius:var(--r-sm);padding:11px 14px;color:var(--ink);font-size:14px;font-family:var(--font-body);
+  transition:border var(--t-base),box-shadow var(--t-base);
+}
+.input::placeholder{color:var(--ink-4)}
+.input:focus{outline:none;border-color:var(--amber);box-shadow:0 0 0 3px rgba(245,166,59,.18)}
+.seg{display:inline-flex;background:rgba(4,5,13,.6);border:1px solid var(--line-strong);border-radius:var(--r-sm);padding:4px;gap:4px}
+.seg button{border:0;background:transparent;color:var(--ink-3);padding:8px 16px;border-radius:7px;font-size:13px;cursor:pointer;font-family:var(--font-body);transition:all var(--t-base)}
+.seg button.on{background:linear-gradient(135deg,var(--amber-hi),var(--amber));color:#1A1206;font-weight:600}
+
+/* ---------- 搜索 + 筛选条 ---------- */
+.searchbar{display:flex;align-items:center;gap:10px;background:rgba(4,5,13,.6);border:1px solid var(--line-strong);border-radius:var(--r-full);padding:10px 18px;max-width:460px}
+.searchbar input{border:0;background:transparent;flex:1;color:var(--ink);font-size:14px}
+.searchbar input:focus{outline:none}
+
+/* ---------- 模拟卡片：群 / 站点 ---------- */
+.cards-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;margin-top:8px}
+.group-card{
+  position:relative;border-radius:var(--r-lg);padding:22px;
+  background:linear-gradient(165deg,var(--space-3),var(--space-2));
+  border:1px solid var(--line);box-shadow:var(--shadow-card);
+  transition:transform var(--t-base) var(--ease-out),border var(--t-base),box-shadow var(--t-base);
+}
+.group-card:hover{transform:translateY(-5px);border-color:rgba(245,166,59,.4);box-shadow:0 26px 60px -20px rgba(2,4,16,.85),0 0 30px -10px rgba(245,166,59,.4)}
+.group-card .top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;margin-bottom:10px}
+.group-card .num{font-family:var(--font-mono);font-size:11px;color:var(--ink-4);letter-spacing:.08em}
+.group-card h4{font-family:var(--font-display);font-size:19px}
+.group-card .desc{font-size:12.5px;color:var(--ink-3);margin:10px 0 14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.group-card .foot{display:flex;justify-content:space-between;align-items:center;border-top:1px dashed var(--line);padding-top:12px}
+.copy-num{font-family:var(--font-mono);font-size:11px;color:var(--amber-hi);background:rgba(245,166,59,.1);border:1px solid rgba(245,166,59,.3);padding:4px 10px;border-radius:var(--r-xs);cursor:pointer}
+
+.site-card{border-radius:var(--r-lg);overflow:hidden;border:1px solid var(--line);background:var(--space-2);transition:transform var(--t-base) var(--ease-out),box-shadow var(--t-base)}
+.site-card:hover{transform:translateY(-5px);box-shadow:0 26px 60px -20px rgba(2,4,16,.85)}
+.site-card .cover{height:130px;position:relative;display:flex;align-items:center;justify-content:center}
+.site-card .cover span{font-family:var(--font-display);font-size:30px;color:rgba(255,255,255,.9)}
+.site-card .body{padding:18px}
+.site-card h4{font-size:16px;font-family:var(--font-display)}
+.site-card p{font-size:12px;color:var(--ink-3);margin:6px 0 12px}
+
+/* ---------- 分页 ---------- */
+.pager{display:flex;gap:8px;justify-content:center;margin-top:36px}
+.pager a{width:36px;height:36px;display:flex;align-items:center;justify-content:center;border-radius:var(--r-xs);border:1px solid var(--line);font-family:var(--font-mono);font-size:12px;color:var(--ink-3);text-decoration:none;transition:all var(--t-base)}
+.pager a.cur{background:linear-gradient(135deg,var(--amber-hi),var(--amber));color:#1A1206;border-color:transparent}
+.pager a:hover:not(.cur){border-color:var(--amber);color:var(--amber-hi)}
+
+/* ---------- 线框布局图 ---------- */
+.wireframe{display:grid;gap:14px;border:1px dashed var(--line-strong);border-radius:var(--r-md);padding:18px;background:rgba(255,255,255,.015)}
+.wf-bar{height:34px;border-radius:8px;background:rgba(126,155,255,.12);border:1px solid rgba(126,155,255,.25);display:flex;align-items:center;padding:0 14px;font-family:var(--font-mono);font-size:10px;color:#B9C8FF;letter-spacing:.1em}
+.wf-grid{display:grid;gap:12px}
+.wf-box{border-radius:8px;border:1px solid var(--line);background:rgba(255,255,255,.04);display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--font-mono);color:var(--ink-4);min-height:90px;padding:10px;text-align:center}
+.wf-hero{min-height:170px;background:linear-gradient(135deg,rgba(245,166,59,.12),rgba(126,155,255,.1));border-color:rgba(245,166,59,.3)}
+.cols-2{grid-template-columns:1fr 1fr}.cols-3{grid-template-columns:repeat(3,1fr)}.cols-4{grid-template-columns:repeat(4,1fr)}
+
+/* ---------- 动效说明卡 ---------- */
+.motion-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+.motion-card{border:1px solid var(--line);border-radius:var(--r-md);padding:20px;background:var(--space-2)}
+.motion-card h4{font-size:14px;margin-bottom:6px;font-family:var(--font-display)}
+.motion-card p{font-size:12px;color:var(--ink-3);margin-bottom:14px}
+.motion-card code{font-family:var(--font-mono);font-size:10px;color:var(--amber-hi);display:block;background:rgba(4,5,13,.5);padding:8px 10px;border-radius:6px;margin-bottom:12px;white-space:pre-wrap}
+.demo-anim{height:54px;border-radius:8px;border:1px dashed var(--line-strong);display:flex;align-items:center;justify-content:center;overflow:hidden}
+.ball{width:12px;height:12px;border-radius:50%;background:var(--amber);box-shadow:0 0 12px var(--amber)}
+.demo-anim:hover .ball.h-float{animation:floatDemo 1.4s var(--ease-spring) infinite}
+.ball.h-pop{transform:scale(1);transition:transform .4s var(--ease-spring)}
+.demo-anim:hover .ball.h-pop{transform:scale(1.6)}
+.ball.h-fade{opacity:0;transition:opacity .5s}
+.demo-anim:hover .ball.h-fade{opacity:1}
+
+/* ---------- 响应式断点表 ---------- */
+table.spec{width:100%;border-collapse:collapse;font-size:13px;border:1px solid var(--line);border-radius:var(--r-md);overflow:hidden}
+table.spec th,table.spec td{padding:13px 16px;text-align:left;border-bottom:1px solid var(--line)}
+table.spec th{background:var(--space-2);font-family:var(--font-mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--ink-3);font-weight:400}
+table.spec tr:last-child td{border-bottom:0}
+table.spec td code{font-family:var(--font-mono);font-size:11px;color:var(--amber-hi)}
+
+/* ---------- 页脚 ---------- */
+footer.spec-foot{padding:64px 0 80px;border-top:1px solid var(--line);margin-top:40px;text-align:center}
+footer .stamp{
+  display:inline-flex;flex-direction:column;align-items:center;gap:10px;
+  border:2px solid rgba(245,166,59,.5);border-radius:var(--r-md);padding:22px 40px;
+  transform:rotate(-2deg);color:var(--amber-hi);
+}
+footer .stamp .s1{font-family:var(--font-display);font-size:18px;font-weight:700;letter-spacing:.15em}
+footer .stamp .s2{font-family:var(--font-mono);font-size:10px;letter-spacing:.25em;opacity:.8}
+
+/* ---------- 动画 ---------- */
+@keyframes pulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.4;transform:scale(.75)}}
+@keyframes floatDemo{0%,100%{transform:translateY(0)}50%{transform:translateY(-14px)}}
+@keyframes rise{from{opacity:0;transform:translateY(26px)}to{opacity:1;transform:translateY(0)}}
+.rise{animation:rise var(--t-cinematic) var(--ease-out) both}
+.rise-1{animation-delay:.08s}.rise-2{animation-delay:.18s}.rise-3{animation-delay:.3s}
+
+/* 目录 */
+.toc{position:sticky;top:0;z-index:20;background:rgba(7,10,24,.85);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+.toc .wrap{display:flex;gap:4px;overflow-x:auto;padding-top:10px;padding-bottom:10px}
+.toc a{font-family:var(--font-mono);font-size:11px;letter-spacing:.08em;color:var(--ink-3);text-decoration:none;padding:6px 12px;border-radius:99px;white-space:nowrap;transition:all .2s}
+.toc a:hover{color:var(--amber-hi);background:rgba(245,166,59,.1)}
+
+/* ---------- 响应式（规范文档自身演示断点） ---------- */
+@media (max-width:640px){
+  .type-row{grid-template-columns:1fr;gap:8px}
+  .hero{padding:64px 0 48px}
+  section.chapter{padding:52px 0}
+  .cols-3,.cols-4{grid-template-columns:1fr 1fr}
+}
+</style>
+</head>
+<body>
+
+<div class="toc">
+  <div class="wrap">
+    <a href="#concept">00 概念</a>
+    <a href="#color">01 色彩</a>
+    <a href="#type">02 字体</a>
+    <a href="#components">03 组件</a>
+    <a href="#layout">04 布局</a>
+    <a href="#motion">05 动效</a>
+    <a href="#responsive">06 响应式</a>
+    <a href="#a11y">07 无障碍</a>
+  </div>
+</div>
+
+<!-- ================= HERO ================= -->
+<header class="hero wrap">
+  <span class="badge rise"><span class="dot"></span> Visual Specification · v2.0</span>
+  <h1 class="d-hero rise rise-1">厚嘴唇空间站</h1>
+  <p class="sub rise rise-2">ChiliChill Fan Spaceport —— 一张通往同好宇宙的复古登船票</p>
+  <p class="lead rise rise-3">设计概念从「通用深色星空」升级为<strong>「深空港 × 复古登船票」</strong>：墨蓝深空仍是底色，但用衬线星体标题、等宽航行日志、票根撕口与邮戳章，把「导航站」做出纸质票根的仪式感。粉丝不是在浏览一个目录，而是在领取一张通往同好舱段的船票。</p>
+  <div class="meta-row rise rise-3">
+    <span><i style="background:var(--amber)"></i> 主信号 Amber</span>
+    <span><i style="background:var(--mint)"></i> 在线 Mint</span>
+    <span><i style="background:var(--aurora)"></i> 信息 Aurora</span>
+    <span><i style="background:var(--coral)"></i> 警示 Coral</span>
+    <span class="mono">TOKEN / 4px GRID / DARK ONLY</span>
+  </div>
+</header>
+
+<!-- ================= 00 设计概念 ================= -->
+<section class="chapter wrap" id="concept">
+  <div class="chapter-head">
+    <span class="chapter-num">00</span>
+    <h2 class="chapter-title">设计概念与差异化</h2>
+    <p class="chapter-desc">
+      记忆点（只保留一个，做深）：<strong>「撕口票根 + 邮戳章」</strong>。导航项像一张船票，两侧半圆撕口、中间虚线存根；审核动作像在船票上盖戳。配合 Fraunces 衬线（星图海报感）与 Space Mono 等宽字（航行编号感），彻底避开「Inter + 紫蓝渐变卡片」的通用 AI 审美。
+    </p>
+  </div>
+  <div class="demo-grid">
+    <div class="panel">
+      <h4>氛围</h4>
+      <p>墨蓝深空、极淡噪点颗粒、缓慢漂移的极光与轨道环。亮处只留给信号色，大面积保留深色呼吸感。</p>
+    </div>
+    <div class="panel">
+      <h4>质感</h4>
+      <p>玻璃面板仅用于弹层与悬浮区；主内容用「深墨抬升面 + 细描边」，票根用暖色半透明纸质层，形成冷暖对比。</p>
+    </div>
+    <div class="panel">
+      <h4>叙事</h4>
+      <p>群 = 群舱，网站 = 星港站点，投稿 = 发送信号，审核 = 校准 / 盖戳。全站文案统一太空港隐喻。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 01 色彩 ================= -->
+<section class="chapter wrap" id="color">
+  <div class="chapter-head">
+    <span class="chapter-num">01</span>
+    <h2 class="chapter-title">色彩系统</h2>
+    <p class="chapter-desc">深色专属（Dark Only），4 层墨蓝构成空间纵深；信号色仅 4 个，琥珀为主调，其余三色各司其职，杜绝色彩平均用力。所有文字色与底色对比度满足 WCAG AA。</p>
+  </div>
+
+  <h3 class="d-3" style="margin:8px 0 16px">墨层 · Surface</h3>
+  <div class="swatch-grid" style="margin-bottom:36px">
+    <div class="swatch"><div class="c" style="background:#04050D"><span class="tick">VOID</span></div><div class="info"><span class="name">深渊 Void</span><span class="hex">#04050D</span><p class="use">最底层 / 输入框底</p></div></div>
+    <div class="swatch"><div class="c" style="background:#070A18"><span class="tick">S1</span></div><div class="info"><span class="name">星面 1</span><span class="hex">#070A18</span><p class="use">页面底色</p></div></div>
+    <div class="swatch"><div class="c" style="background:#0C1126"><span class="tick">S2</span></div><div class="info"><span class="name">星面 2</span><span class="hex">#0C1126</span><p class="use">抬升面 / 表格头</p></div></div>
+    <div class="swatch"><div class="c" style="background:#141B3A"><span class="tick">S3</span></div><div class="info"><span class="name">星面 3</span><span class="hex">#141B3A</span><p class="use">群卡片</p></div></div>
+    <div class="swatch"><div class="c" style="background:#1F2A52"><span class="tick">S4</span></div><div class="info"><span class="name">星面 4</span><span class="hex">#1F2A52</span><p class="use">悬浮 / 弹层</p></div></div>
+  </div>
+
+  <h3 class="d-3" style="margin:8px 0 16px">信号色 · Signal</h3>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="c" style="background:linear-gradient(135deg,#FFC778,#F5A63B)"><span class="tick">PRIMARY</span></div><div class="info"><span class="name">琥珀 Amber</span><span class="hex">#F5A63B / #FFC778</span><p class="use">主按钮 / 指引 / 高亮星点</p></div></div>
+    <div class="swatch"><div class="c" style="background:#F06A4E"><span class="tick">DANGER</span></div><div class="info"><span class="name">珊瑚 Coral</span><span class="hex">#F06A4E</span><p class="use">驳回 / 退出 / 必填星号</p></div></div>
+    <div class="swatch"><div class="c" style="background:#7E9BFF"><span class="tick">INFO</span></div><div class="info"><span class="name">极光 Aurora</span><span class="hex">#7E9BFF</span><p class="use">链接 / 控制舱 / 信息</p></div></div>
+    <div class="swatch"><div class="c" style="background:#5FD9B8"><span class="tick">SUCCESS</span></div><div class="info"><span class="name">薄荷 Mint</span><span class="hex">#5FD9B8</span><p class="use">在线 / 通过 / 成功</p></div></div>
+  </div>
+
+  <h3 class="d-3" style="margin:36px 0 16px">文字与描边 · Ink &amp; Line</h3>
+  <div class="swatch-grid">
+    <div class="swatch"><div class="c" style="background:#ECEEFF"><span class="tick" style="color:#111">INK</span></div><div class="info"><span class="name">主文字</span><span class="hex">#ECEEFF</span><p class="use">标题 / 正文主体</p></div></div>
+    <div class="swatch"><div class="c" style="background:#B6BEDD"><span class="tick" style="color:#111">INK-2</span></div><div class="info"><span class="name">次文字</span><span class="hex">#B6BEDD</span><p class="use">引导段落</p></div></div>
+    <div class="swatch"><div class="c" style="background:#8B94B8"><span class="tick">INK-3</span></div><div class="info"><span class="name">弱文字</span><span class="hex">#8B94B8</span><p class="use">说明 / 辅助信息</p></div></div>
+    <div class="swatch"><div class="c" style="background:rgba(233,236,255,.1)"><span class="tick">LINE</span></div><div class="info"><span class="name">描边</span><span class="hex">rgba(233,236,255,.10~.18)</span><p class="use">分割线 / 卡片边</p></div></div>
+  </div>
+</section>
+
+<!-- ================= 02 字体 ================= -->
+<section class="chapter wrap" id="type">
+  <div class="chapter-head">
+    <span class="chapter-num">02</span>
+    <h2 class="chapter-title">字体规范</h2>
+    <p class="chapter-desc">三族字体分工：<strong>Fraunces</strong>（可变衬线，复古星图海报，承担 Display）、<strong>Noto Sans SC</strong>（正文，屏显清晰）、<strong>Space Mono</strong>（等宽，编号 / 航行日志 / 数据）。中文标题回退 Noto Serif SC，保持衬线气质。</p>
+  </div>
+
+  <div class="type-list">
+    <div class="type-row"><span class="tag">Display Hero · 76/700</span><span class="sample" style="font-family:var(--font-display);font-size:44px;font-weight:700">厚嘴唇空间站 Aa</span></div>
+    <div class="type-row"><span class="tag">Display H1 · 40/600</span><span class="sample" style="font-family:var(--font-display);font-size:34px;font-weight:600">进入群舱轨道</span></div>
+    <div class="type-row"><span class="tag">Display Italic · 20/500</span><span class="sample" style="font-family:var(--font-display);font-style:italic;font-size:20px">一张通往同好宇宙的船票</span></div>
+    <div class="type-row"><span class="tag">H2 · 22/600</span><span class="sample" style="font-family:var(--font-display);font-size:22px">按大区进入轨道</span></div>
+    <div class="type-row"><span class="tag">Body · 15/400</span><span class="sample" style="font-size:15px">我们把散落在聊天记录里的 Q 群与自制站点，收拢进同一条星轨。</span></div>
+    <div class="type-row"><span class="tag">Small · 12.5</span><span class="sample" style="font-size:12.5px;color:var(--ink-3)">每个大区下都有城市星港，点击即可查看对应群舱。</span></div>
+    <div class="type-row"><span class="tag">Mono · 12</span><span class="sample mono" style="font-size:12px">CC-01 · REGION/SOUTH · GUANGZHOU · 200020002</span></div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:14px;margin-top:24px">
+    <div class="panel"><h4 style="font-size:14px">字阶比例</h4><p>1.25 大调律；正文基准 15px / 行高 1.7；标题行高 1.15。</p></div>
+    <div class="panel"><h4 style="font-size:14px">字距</h4><p>Display +0.01em；英文 Eyebrow 大写 +0.32em；中文正文默认。</p></div>
+    <div class="panel"><h4 style="font-size:14px">回退策略</h4><p>离线无网络字体时，中文回退系统衬线 / 黑体，等宽回退 monospace，层级不塌。</p></div>
+  </div>
+</section>
+
+<!-- ================= 03 组件 ================= -->
+<section class="chapter wrap" id="components">
+  <div class="chapter-head">
+    <span class="chapter-num">03</span>
+    <h2 class="chapter-title">组件样式</h2>
+    <p class="chapter-desc">所有组件基于 4px 间距栅格与统一令牌；悬停反馈以「上浮 + 信号色描边 / 微光」为主，点击一律有按压反馈。</p>
+  </div>
+
+  <h3 class="d-3" style="margin-bottom:16px">按钮 Button</h3>
+  <div class="btns" style="margin-bottom:44px">
+    <a class="btn btn-primary" href="#components">主按钮 · 发送信号</a>
+    <a class="btn btn-secondary" href="#components">次按钮</a>
+    <a class="btn btn-ghost" href="#components">幽灵按钮</a>
+    <a class="btn btn-danger" href="#components">驳回</a>
+    <a class="btn btn-primary btn-sm" href="#components">小号</a>
+  </div>
+
+  <h3 class="d-3" style="margin-bottom:16px">标签徽章 Chip / Badge</h3>
+  <div class="chips" style="margin-bottom:44px">
+    <span class="chip">默认标签</span>
+    <span class="chip amber">华南大区</span>
+    <span class="chip mint">已通过</span>
+    <span class="chip coral">已驳回</span>
+    <span class="chip aurora">控制舱</span>
+    <span class="chip amber">应援企划</span>
+  </div>
+
+  <h3 class="d-3" style="margin-bottom:16px">票根 Ticket（核心组件）</h3>
+  <div class="demo-grid" style="margin-bottom:44px">
+    <div class="ticket">
+      <div class="t-main">
+        <p class="name">ChiliChill 广州小分队</p>
+        <p class="route">REGION · 华南 / GUANGZHOU</p>
+      </div>
+      <div class="stub">NO.<br>200020001</div>
+    </div>
+    <div class="ticket" style="background:linear-gradient(135deg,rgba(95,217,184,.14),rgba(126,155,255,.08));border-color:rgba(95,217,184,.35)">
+      <div class="t-main">
+        <p class="name">星轨节奏小游戏</p>
+        <p class="route">SITE · 小游戏 / 趣味</p>
+      </div>
+      <div class="stub" style="color:var(--mint);border-color:rgba(95,217,184,.5)">DOCK<br>#S-03</div>
+    </div>
+  </div>
+
+  <h3 class="d-3" style="margin-bottom:16px">表单 Form</h3>
+  <div class="form-demo" style="margin-bottom:20px">
+    <div class="field">
+      <label>群类型<span class="req">*</span></label>
+      <div class="seg">
+        <button class="on">地区粉丝群</button>
+        <button>线上功能群</button>
+        <button>其他类型</button>
+      </div>
+    </div>
+    <div class="field">
+      <label>群名称<span class="req">*</span></label>
+      <input class="input" placeholder="例如：ChiliChill 成都应援筹备群" />
+    </div>
+    <div class="field">
+      <label>群号<span class="req">*</span></label>
+      <input class="input mono" placeholder="5-12 位数字" />
+    </div>
+  </div>
+  <div class="searchbar" style="margin-bottom:44px">
+    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#8B94B8" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+    <input placeholder="搜索群名 / 城市 / 功能…" />
+  </div>
+
+  <h3 class="d-3" style="margin-bottom:16px">内容卡片 · 群 / 站点（真实样式）</h3>
+  <div class="cards-row">
+    <article class="group-card">
+      <div class="top">
+        <span class="chip amber" style="padding:3px 10px;font-size:11px">地区粉丝群</span>
+        <span class="num">CC-01</span>
+      </div>
+      <h4>ChiliChill 广州小分队</h4>
+      <p class="desc">华南大区的线下根据地，观影、应援、聚餐都从这里发起，欢迎同城小伙伴登舱。</p>
+      <div class="foot">
+        <span class="mono" style="font-size:11px;color:var(--ink-3)">华南 · 广州</span>
+        <span class="copy-num">200020001 复制</span>
+      </div>
+    </article>
+    <article class="group-card">
+      <div class="top">
+        <span class="chip aurora" style="padding:3px 10px;font-size:11px">线上功能群</span>
+        <span class="num">CC-04</span>
+      </div>
+      <h4>线上应援企划组</h4>
+      <p class="desc">跨城市的应援物料企划与协作舱，负责打榜、手幅、排期分工，长期招募中。</p>
+      <div class="foot">
+        <span class="mono" style="font-size:11px;color:var(--ink-3)">应援企划</span>
+        <span class="copy-num">200020004 复制</span>
+      </div>
+    </article>
+    <article class="site-card">
+      <div class="cover" style="background:linear-gradient(135deg,#3a2a12,#1a2040)"><span>节奏</span></div>
+      <div class="body">
+        <h4>星轨节奏小游戏</h4>
+        <p>踩着专辑节拍点击星点，粉丝自制的节奏挑战小游戏。</p>
+        <span class="chip mint" style="padding:3px 10px;font-size:11px">小游戏</span>
+      </div>
+    </article>
+  </div>
+
+  <h3 class="d-3" style="margin:44px 0 16px">分页 Pagination</h3>
+  <div class="pager">
+    <a href="#components">‹</a><a href="#components">1</a><a class="cur" href="#components">2</a><a href="#components">3</a><a href="#components">4</a><a href="#components">›</a>
+  </div>
+</section>
+
+<!-- ================= 04 布局 ================= -->
+<section class="chapter wrap" id="layout">
+  <div class="chapter-head">
+    <span class="chapter-num">04</span>
+    <h2 class="chapter-title">页面布局标准</h2>
+    <p class="chapter-desc">内容最大宽度 1120px，桌面居中留白；页面纵向节奏 64–80px。以下为核心页面的栅格结构示意（灰块仅表示区域占比）。</p>
+  </div>
+
+  <h3 class="d-3" style="margin-bottom:14px">首页 Home</h3>
+  <div class="wireframe" style="margin-bottom:36px">
+    <div class="wf-bar">TOP NAV · 64px</div>
+    <div class="wf-grid cols-2">
+      <div class="wf-box wf-hero">HERO 左 · 标题 / 副标 / 3 按钮</div>
+      <div class="wf-box wf-hero">HERO 右 · 轨道动画装置</div>
+    </div>
+    <div class="wf-grid cols-3"><div class="wf-box">统计 ×3</div><div class="wf-box">统计</div><div class="wf-box">统计</div></div>
+    <div class="wf-grid cols-4"><div class="wf-box">大区入口 ×10</div><div class="wf-box">大区</div><div class="wf-box">大区</div><div class="wf-box">大区</div></div>
+    <div class="wf-grid cols-3"><div class="wf-box">最新群舱 ×6</div><div class="wf-box">群舱</div><div class="wf-box">群舱</div></div>
+    <div class="wf-grid cols-3"><div class="wf-box">精选站点 ×3</div><div class="wf-box">站点</div><div class="wf-box">站点</div></div>
+    <div class="wf-box">投稿引导横幅（暖色）</div>
+  </div>
+
+  <h3 class="d-3" style="margin-bottom:14px">列表页 Groups / Sites</h3>
+  <div class="wireframe" style="margin-bottom:36px">
+    <div class="wf-bar">TOP NAV</div>
+    <div class="wf-box" style="min-height:60px;justify-content:flex-start;padding-left:18px">页头：标题 + 数量 + 投稿按钮</div>
+    <div class="wf-grid cols-4">
+      <div class="wf-box" style="grid-column:1">左侧 / 顶部 筛选器（类型·大区·标签）</div>
+      <div class="wf-box" style="grid-column:2 / span 3;min-height:200px">内容网格 3 列卡片</div>
+    </div>
+    <div class="wf-box" style="min-height:44px">分页</div>
+  </div>
+
+  <h3 class="d-3" style="margin-bottom:14px">投稿页 Submit / 后台 Admin</h3>
+  <div class="wf-grid cols-2">
+    <div class="wireframe">
+      <div class="wf-box" style="min-height:50px">Tab：Q群 / 网站</div>
+      <div class="wf-box">分段控件选群类型 → 条件字段（城市 / 标签 / 用途）</div>
+      <div class="wf-box" style="min-height:130px">表单主体 + 上传 + 提交</div>
+    </div>
+    <div class="wireframe">
+      <div class="wf-bar">ADMIN SIDE NAV</div>
+      <div class="wf-grid cols-2"><div class="wf-box" style="min-height:120px">待审队列</div><div class="wf-box">统计卡</div></div>
+      <div class="wf-box" style="min-height:120px">详情抽屉：字段 / 差异 / 盖戳按钮</div>
+    </div>
+  </div>
+</section>
+
+<!-- ================= 05 动效 ================= -->
+<section class="chapter wrap" id="motion">
+  <div class="chapter-head">
+    <span class="chapter-num">05</span>
+    <h2 class="chapter-title">交互动效规范</h2>
+    <p class="chapter-desc">动效服务于「信号 / 航行」叙事：入场像接收信号（上浮淡入），悬停像脱离重力（轻微上浮），成功像盖戳（弹性缩放）。默认尊重 prefers-reduced-motion。</p>
+  </div>
+
+  <div class="motion-grid">
+    <div class="motion-card">
+      <h4>页面入场 · Signal In</h4>
+      <p>区块自下而上 26px 淡入，依次 stagger 0.08 / 0.18 / 0.3s。</p>
+      <code>duration:.9s ease:cubic-bezier(.22,1,.36,1)
+delay: 0/.08/.18/.3 stagger</code>
+      <div class="demo-anim"><span class="ball h-fade">悬停回放</span></div>
+    </div>
+    <div class="motion-card">
+      <h4>卡片悬停 · Anti-gravity</h4>
+      <p>上浮 5px，边框转琥珀，出现暖色远光投影。</p>
+      <code>translateY(-5px) · .28s ease-out
+box-shadow: 26px 60px + amber glow</code>
+      <div class="demo-anim"><span class="ball h-float">悬停回放</span></div>
+    </div>
+    <div class="motion-card">
+      <h4>盖戳 / 点击 · Stamp</h4>
+      <p>按钮点击 scale(.98)；成功徽标弹性放大回弹，模拟盖章。</p>
+      <code>active: scale(.98) translateY(1px)
+spring: cubic-bezier(.34,1.56,.64,1)</code>
+      <div class="demo-anim"><span class="ball h-pop">悬停回放</span></div>
+    </div>
+    <div class="motion-card">
+      <h4>持续氛围 · Ambient</h4>
+      <p>星点闪烁 3s、漂浮 6s、极光漂移 18s、轨道环 20–48s 匀速旋转。</p>
+      <code>twinkle 3s · float 6s · aurora 18s
+orbit spin 20s/32s/48s linear infinite</code>
+      <div class="demo-anim"><span class="ball" style="animation:pulse 2.4s ease-in-out infinite">呼吸中</span></div>
+    </div>
+  </div>
+
+  <div class="demo-grid" style="margin-top:24px">
+    <div class="panel"><h4 style="font-size:14px">时长档位</h4><p>微交互 .16s · 常规 .28s · 强调 .5s · 叙事入场 .9s。超过 1s 的动效仅用于氛围背景。</p></div>
+    <div class="panel"><h4 style="font-size:14px">抽屉 / 弹层</h4><p>遮罩淡入 .28s；面板自右侧 40px 滑入并淡入，ease-out；关闭反向，时长 .28s。</p></div>
+    <div class="panel"><h4 style="font-size:14px">列表更新</h4><p>筛选 / 分页切换时内容区淡入 .3s；加载用信号脉冲骨架屏，不使用旋转菊花。</p></div>
+  </div>
+</section>
+
+<!-- ================= 06 响应式 ================= -->
+<section class="chapter wrap" id="responsive">
+  <div class="chapter-head">
+    <span class="chapter-num">06</span>
+    <h2 class="chapter-title">响应式适配规则</h2>
+    <p class="chapter-desc">移动优先，四档断点。桌面筛选侧栏在平板收起为横向筛选条，在手机收纳进折叠面板；卡片栅格逐级降列；触控目标不小于 40×40px。</p>
+  </div>
+
+  <table class="spec" style="margin-bottom:28px">
+    <thead>
+      <tr><th>断点</th><th>区间</th><th>栅格</th><th>导航 / 筛选</th><th>间距</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>xs</code> 手机</td><td>0 – 639px</td>
+        <td>卡片 1 列；大区 2 列；统计 1 列</td>
+        <td>汉堡菜单全屏抽屉；筛选折叠面板</td>
+        <td>区块 52px；页边 16px</td>
+      </tr>
+      <tr>
+        <td><code>sm</code> 大手机/小平板</td><td>640 – 767px</td>
+        <td>卡片 2 列；统计 3 列</td>
+        <td>汉堡菜单；筛选横向滚动条</td>
+        <td>区块 60px；页边 24px</td>
+      </tr>
+      <tr>
+        <td><code>md</code> 平板</td><td>768 – 1023px</td>
+        <td>卡片 2 列；大区 3 列</td>
+        <td>顶部完整导航；筛选横条</td>
+        <td>区块 64px；页边 32px</td>
+      </tr>
+      <tr>
+        <td><code>lg</code> 桌面</td><td>1024px+</td>
+        <td>卡片 3 列；大区 5 列</td>
+        <td>完整导航 + 左侧筛选栏</td>
+        <td>区块 80px；内容 1120px</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="demo-grid">
+    <div class="panel"><h4 style="font-size:14px">字号缩放</h4><p>Hero 使用 clamp(40px,7vw,76px) 流式缩放；正文固定 15px，不在移动端缩小正文字号。</p></div>
+    <div class="panel"><h4 style="font-size:14px">图片 / 封面</h4><p>站点封面固定比例 16:7；二维码 1:1；使用 srcset 或容器自适应，禁止横向溢出。</p></div>
+    <div class="panel"><h4 style="font-size:14px">触控</h4><p>所有可点元素 ≥40px 高；手机端按钮之间留 8px 以上，复制群号改为整行按钮更易点。</p></div>
+  </div>
+</section>
+
+<!-- ================= 07 无障碍 ================= -->
+<section class="chapter wrap" id="a11y">
+  <div class="chapter-head">
+    <span class="chapter-num">07</span>
+    <h2 class="chapter-title">无障碍与实现约束</h2>
+    <p class="chapter-desc">视觉创新不以牺牲可用性为代价；以下规则在像素级实现阶段逐条落地。</p>
+  </div>
+  <div class="demo-grid">
+    <div class="panel"><h4 style="font-size:14px">对比度</h4><p>正文 / 主文字对底色 ≥ 4.5:1；信号色仅用于大字、图标与边框时可用 3:1 档位。</p></div>
+    <div class="panel"><h4 style="font-size:14px">焦点可见</h4><p>键盘焦点统一为 3px 琥珀色光环（rgba(245,166,59,.25)），不使用浏览器默认描边但绝不移除焦点。</p></div>
+    <div class="panel"><h4 style="font-size:14px">减弱动效</h4><p>prefers-reduced-motion 时关闭轨道 / 漂浮 / 入场动画，仅保留必要的透明度反馈。</p></div>
+    <div class="panel"><h4 style="font-size:14px">语义与外链</h4><p>卡片用 article，导航用 nav；站点外链 target="_blank" 必带 rel="noopener noreferrer"；图标按钮带 aria-label。</p></div>
+    <div class="panel"><h4 style="font-size:14px">令牌落地</h4><p>全部颜色 / 圆角 / 阴影 / 动效以 CSS 变量 + Tailwind theme.extend 双写一致，禁止组件内硬编码色值。</p></div>
+    <div class="panel"><h4 style="font-size:14px">还原标准</h4><p>以本规范为唯一视觉真值；实现后在 375 / 768 / 1280 三宽度截图比对，间距偏差不超过 2px。</p></div>
+  </div>
+</section>
+
+<!-- ================= FOOTER ================= -->
+<footer class="spec-foot wrap">
+  <div class="stamp">
+    <span class="s1">厚嘴唇空间站</span>
+    <span class="s2">CHILICHILL · SPACEPORT · 2026</span>
+  </div>
+  <p class="muted" style="margin-top:28px;font-size:12px">本文件为视觉设计真值（Single Source of Truth）。确认通过后，前端将严格按此规范像素级实现。</p>
+</footer>
+
+</body>
+</html>
