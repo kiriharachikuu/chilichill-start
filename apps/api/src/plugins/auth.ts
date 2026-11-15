@@ -41,6 +41,28 @@ export async function freshRole(userId: string): Promise<string | null> {
   return user?.role ?? null;
 }
 
+/**
+ * 读取角色并记录校验失败详情：数据库异常时返回 503 而不是笼统 500，
+ * 且绝不把数据库异常当作“无权限”处理——避免合法权限用户被误拒。
+ */
+async function loadRoleWithAudit(request: FastifyRequest, userId: string): Promise<string | null> {
+  try {
+    return await freshRole(userId);
+  } catch (error) {
+    request.log.error(
+      {
+        err: error,
+        userId,
+        url: request.url,
+        method: request.method,
+        ip: request.ip,
+      },
+      '[权限校验] 读取用户角色失败（数据库异常），拒绝判定为服务暂时不可用',
+    );
+    throw new HttpError(503, 'SERVICE_UNAVAILABLE', '权限校验暂时不可用，请稍后再试');
+  }
+}
+
 export function registerAuthPlugin(app: FastifyInstance) {
   const authenticate = async (request: FastifyRequest) => {
     try {
@@ -74,8 +96,12 @@ export function registerAuthPlugin(app: FastifyInstance) {
     if (!user) {
       throw new HttpError(401, 'UNAUTHORIZED', '请先登录');
     }
-    const role = await freshRole(user.sub);
+    const role = await loadRoleWithAudit(request, user.sub);
     if (role !== 'ADMIN') {
+      request.log.warn(
+        { userId: user.sub, role: role ?? '用户不存在', url: request.url, method: request.method, ip: request.ip },
+        '[权限校验] 非管理员访问管理接口被拒绝',
+      );
       throw new HttpError(403, 'FORBIDDEN', '需要管理员权限');
     }
     // 让后续 handler 拿到实时角色
@@ -89,8 +115,12 @@ export function registerAuthPlugin(app: FastifyInstance) {
     if (!user) {
       throw new HttpError(401, 'UNAUTHORIZED', '请先登录');
     }
-    const role = await freshRole(user.sub);
+    const role = await loadRoleWithAudit(request, user.sub);
     if (role !== 'ADMIN' && role !== 'MODERATOR') {
+      request.log.warn(
+        { userId: user.sub, role: role ?? '用户不存在', url: request.url, method: request.method, ip: request.ip },
+        '[权限校验] 非审核组成员访问审核接口被拒绝',
+      );
       throw new HttpError(403, 'FORBIDDEN', '需要审核组权限');
     }
     request.user = { ...user, role };

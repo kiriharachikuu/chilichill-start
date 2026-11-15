@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, type FormEvent, type ReactNode } from 'react';
 import { Lock, Mail, UserRound } from 'lucide-react';
-import { ApiError, api } from '../lib/api';
+import { api, formatApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import Button from '../components/Button';
 import EmailCodeField from '../components/EmailCodeField';
@@ -95,7 +95,8 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       }
       onClose();
     } catch (error) {
-      setServerError(error instanceof ApiError ? error.message : '请求失败，请稍后再试');
+      // 网络/超时/限流错误均带友好中文提示；限流错误附加重试等待秒数
+      setServerError(formatApiError(error));
     } finally {
       setSubmitting(false);
     }

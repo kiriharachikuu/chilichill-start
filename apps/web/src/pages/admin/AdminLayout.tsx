@@ -6,40 +6,41 @@ import {
   ClipboardCheck,
   Flag,
   CloudCog,
-  Images,
   Layers,
   Map,
   Tags,
   Users,
   type LucideIcon,
 } from 'lucide-react';
-import type { MetaResponse } from '@spaceport/shared';
+import type { MetaResponse, Permission } from '@spaceport/shared';
+import { PERMISSIONS, hasPermission } from '@spaceport/shared';
 import { EMPTY_META, loadMeta } from '../../lib/meta';
 import { useAuth } from '../../lib/auth';
 import { buttonClass } from '../../components/Button';
 
-const ADMIN_NAV: { to: string; label: string; icon: LucideIcon; end?: boolean; adminOnly?: boolean }[] = [
-  { to: '/admin', label: '审核台', icon: ClipboardCheck, end: true },
-  { to: '/admin/reports', label: '举报管理', icon: Flag },
-  { to: '/admin/content', label: '内容管理', icon: Layers, adminOnly: true },
-  { to: '/admin/activities', label: '活动管理', icon: CalendarDays, adminOnly: true },
-  { to: '/admin/gallery', label: '画廊管理', icon: Images, adminOnly: true },
-  { to: '/admin/tags', label: '标签管理', icon: Tags, adminOnly: true },
-  { to: '/admin/rules', label: '分类规则', icon: Map, adminOnly: true },
-  { to: '/admin/users', label: '用户管理', icon: Users, adminOnly: true },
-  { to: '/admin/settings', label: '系统设置', icon: CloudCog, adminOnly: true },
+const ADMIN_NAV: { to: string; label: string; icon: LucideIcon; end?: boolean; permission?: Permission }[] = [
+  { to: '/admin', label: '审核台', icon: ClipboardCheck, end: true, permission: PERMISSIONS.REVIEW_VIEW },
+  { to: '/admin/reports', label: '举报管理', icon: Flag, permission: PERMISSIONS.REPORT_MANAGE },
+  { to: '/admin/content', label: '内容管理', icon: Layers, permission: PERMISSIONS.CONTENT_MANAGE },
+  { to: '/admin/activities', label: '活动管理', icon: CalendarDays, permission: PERMISSIONS.CONTENT_MANAGE },
+  { to: '/admin/tags', label: '标签管理', icon: Tags, permission: PERMISSIONS.CONTENT_MANAGE },
+  { to: '/admin/rules', label: '分类规则', icon: Map, permission: PERMISSIONS.CONTENT_MANAGE },
+  { to: '/admin/users', label: '用户管理', icon: Users, permission: PERMISSIONS.USER_MANAGE },
+  { to: '/admin/settings', label: '系统设置', icon: CloudCog, permission: PERMISSIONS.SYSTEM_MANAGE },
 ];
 
 export default function AdminLayout() {
   const [meta, setMeta] = useState<MetaResponse>(EMPTY_META);
   const { user } = useAuth();
-  const isAdmin = user?.role === 'ADMIN';
 
   useEffect(() => {
     loadMeta().then(setMeta);
   }, []);
 
-  const visibleNav = ADMIN_NAV.filter((item) => isAdmin || !item.adminOnly);
+  // 导航可见性与权限配置表对齐：审核组只见审核台与举报管理，管理员可见全部
+  const visibleNav = ADMIN_NAV.filter(
+    (item) => !item.permission || hasPermission(user?.role, item.permission),
+  );
 
   const linkClass = ({ isActive }: { isActive: boolean }) =>
     `flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-sm transition ${

@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { Lock, Mail, Orbit, Sparkles, UserRound } from 'lucide-react';
-import { ApiError, api } from '../lib/api';
+import { api, formatApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { parseExternalTarget, safeRedirectPath } from '../lib/redirect';
 import Button from '../components/Button';
@@ -75,7 +75,8 @@ export default function LoginPage() {
         navigate(next, { replace: true });
       }
     } catch (error) {
-      setServerError(error instanceof ApiError ? error.message : '请求失败，请稍后再试');
+      // 网络/超时/限流错误均带友好中文提示；限流错误附加重试等待秒数
+      setServerError(formatApiError(error));
     } finally {
       setSubmitting(false);
     }

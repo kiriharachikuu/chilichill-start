@@ -4,6 +4,7 @@ import {
   Clock3,
   Eye,
   Globe2,
+  Images,
   Inbox,
   Pencil,
   RefreshCw,
@@ -11,6 +12,7 @@ import {
 } from 'lucide-react';
 import {
   ENTITY_TYPE_LABELS,
+  GALLERY_MEDIA_TYPE_LABELS,
   GROUP_TYPE_LABELS,
   formatLocation,
   type Group,
@@ -24,12 +26,29 @@ import { ApiError, api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { formatDateTime } from '../lib/format';
 import { EMPTY_META, loadMeta } from '../lib/meta';
-import { groupFormFromGroup, groupFormFromPayload, isGroupEntity, isSiteEntity, siteFormFromSite, siteFormFromPayload, submissionSummary, validateGroupForm, validateSiteForm, type FieldErrors, type GroupFormState, type SiteFormState } from '../lib/submissionForms';
+import {
+  galleryFormFromPayload,
+  groupFormFromGroup,
+  groupFormFromPayload,
+  isGroupEntity,
+  isSiteEntity,
+  siteFormFromSite,
+  siteFormFromPayload,
+  submissionSummary,
+  validateGalleryForm,
+  validateGroupForm,
+  validateSiteForm,
+  type FieldErrors,
+  type GalleryFormState,
+  type GroupFormState,
+  type SiteFormState,
+} from '../lib/submissionForms';
 import Badge from '../components/Badge';
 import Button, { buttonClass } from '../components/Button';
 import Card from '../components/Card';
 import EmptyState from '../components/EmptyState';
 import GroupFields from '../components/forms/GroupFields';
+import GalleryFields from '../components/forms/GalleryFields';
 import SiteFields from '../components/forms/SiteFields';
 import Modal from '../components/Modal';
 import Pagination from '../components/Pagination';
@@ -52,11 +71,13 @@ interface SubmissionDetail {
 }
 
 function EntityIcon({ type }: { type: Submission['entityType'] }) {
-  return type === 'GROUP' ? (
-    <UsersRound className="h-4 w-4 text-amber" />
-  ) : (
-    <Globe2 className="h-4 w-4 text-mint" />
-  );
+  if (type === 'GROUP') {
+    return <UsersRound className="h-4 w-4 text-amber" />;
+  }
+  if (type === 'GALLERY') {
+    return <Images className="h-4 w-4 text-aurora" />;
+  }
+  return <Globe2 className="h-4 w-4 text-mint" />;
 }
 
 interface DrawerProps {
@@ -72,6 +93,7 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
   const [loading, setLoading] = useState(false);
   const [groupForm, setGroupForm] = useState<GroupFormState | null>(null);
   const [siteForm, setSiteForm] = useState<SiteFormState | null>(null);
+  const [galleryForm, setGalleryForm] = useState<GalleryFormState | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [serverError, setServerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -81,6 +103,7 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
       setDetail(null);
       setGroupForm(null);
       setSiteForm(null);
+      setGalleryForm(null);
       return;
     }
     let alive = true;
@@ -93,7 +116,10 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
         if (!alive) return;
         setDetail(result);
         const useTarget = result.item.status === 'APPROVED' ? result.target : null;
-        if (result.item.entityType === 'GROUP') {
+        if (result.item.entityType === 'GALLERY') {
+          // 画廊作品只支持新增：表单始终来自投稿 payload，驳回后可改图重新提交
+          setGalleryForm(galleryFormFromPayload(result.item.payload));
+        } else if (result.item.entityType === 'GROUP') {
           setGroupForm(
             useTarget && isGroupEntity(useTarget)
               ? groupFormFromGroup(useTarget)
@@ -120,15 +146,22 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
   }, [submission?.id]);
 
   const current = detail?.item ?? submission;
-  const editable = current?.status === 'REJECTED' || current?.status === 'APPROVED';
-  const readOnly = current?.status === 'PENDING';
+  // 画廊作品不支持修改投稿（UPDATE 会被后端拒绝）：已通过的画廊只读，被驳回的可以改后重新提交
+  const editable =
+    current?.status === 'REJECTED' ||
+    (current?.status === 'APPROVED' && current?.entityType !== 'GALLERY');
+  const readOnly = !editable;
 
   const handleSubmit = async () => {
     if (!current) return;
     setServerError('');
     let payload: Record<string, unknown> | undefined;
 
-    if (current.entityType === 'GROUP' && groupForm) {
+    if (current.entityType === 'GALLERY' && galleryForm) {
+      const result = validateGalleryForm(galleryForm);
+      setErrors(result.errors);
+      payload = result.payload as Record<string, unknown> | undefined;
+    } else if (current.entityType === 'GROUP' && groupForm) {
       const result = validateGroupForm(groupForm);
       setErrors(result.errors);
       payload = result.payload;
@@ -256,6 +289,35 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
                     }
                   />
                 </>
+              ) : current.entityType === 'GALLERY' ? (
+                <>
+                  {typeof payload.imageUrl === 'string' && payload.imageUrl ? (
+                    <div className="overflow-hidden rounded-xl border border-white/10 bg-space-900/60">
+                      <img
+                        src={payload.imageUrl}
+                        alt={String(payload.title || '画廊作品')}
+                        className="max-h-64 w-full object-contain"
+                      />
+                    </div>
+                  ) : null}
+                  <InfoRow label="标题" value={String(payload.title ?? '—')} />
+                  <InfoRow
+                    label="作品类型"
+                    value={
+                      GALLERY_MEDIA_TYPE_LABELS[payload.mediaType as keyof typeof GALLERY_MEDIA_TYPE_LABELS] ??
+                      '—'
+                    }
+                  />
+                  <InfoRow label="简介" value={String(payload.description ?? '—')} />
+                  <InfoRow
+                    label="标签"
+                    value={
+                      Array.isArray(payload.tags) && payload.tags.length
+                        ? (payload.tags as string[]).join('、')
+                        : '—'
+                    }
+                  />
+                </>
               ) : (
                 <>
                   <InfoRow label="标题" value={String(payload.title ?? '—')} />
@@ -282,6 +344,13 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
 
               {current.entityType === 'GROUP' && groupForm ? (
                 <GroupFields value={groupForm} onChange={setGroupForm} meta={meta} errors={errors} />
+              ) : null}
+              {current.entityType === 'GALLERY' && galleryForm ? (
+                <GalleryFields
+                  value={galleryForm}
+                  onChange={(patch) => setGalleryForm((prev) => (prev ? { ...prev, ...patch } : prev))}
+                  errors={errors}
+                />
               ) : null}
               {current.entityType === 'SITE' && siteForm ? (
                 <SiteFields value={siteForm} onChange={setSiteForm} meta={meta} errors={errors} />
@@ -434,9 +503,20 @@ export default function MePage() {
               return (
                 <Card key={item.id} hover={false} className="flex flex-col gap-4 sm:flex-row sm:items-center">
                   <div className="flex min-w-0 flex-1 items-start gap-3">
-                    <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
-                      <EntityIcon type={item.entityType} />
-                    </span>
+                    {item.entityType === 'GALLERY' &&
+                    typeof item.payload.imageUrl === 'string' &&
+                    item.payload.imageUrl ? (
+                      <img
+                        src={item.payload.imageUrl}
+                        alt={summary}
+                        loading="lazy"
+                        className="mt-0.5 h-9 w-9 shrink-0 rounded-xl border border-white/10 object-cover"
+                      />
+                    ) : (
+                      <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                        <EntityIcon type={item.entityType} />
+                      </span>
+                    )}
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="truncate text-sm font-medium text-ink">{summary}</span>
@@ -463,7 +543,8 @@ export default function MePage() {
                       >
                         修改并重新提交
                       </Button>
-                    ) : item.status === 'APPROVED' ? (
+                    ) : item.status === 'APPROVED' && item.entityType !== 'GALLERY' ? (
+                      // 画廊作品不支持修改投稿，已通过后仅可查看
                       <Button
                         size="sm"
                         variant="secondary"

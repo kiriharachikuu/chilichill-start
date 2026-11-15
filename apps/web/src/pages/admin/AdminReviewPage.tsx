@@ -487,10 +487,22 @@ export default function AdminReviewPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [meta, setMeta] = useState<MetaResponse>(EMPTY_META);
   const [selected, setSelected] = useState<Submission | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [batchRejectOpen, setBatchRejectOpen] = useState(false);
+  const [batchNote, setBatchNote] = useState('');
+  const [batchNoteError, setBatchNoteError] = useState('');
+  const [batchActing, setBatchActing] = useState<'approve' | 'reject' | null>(null);
+  const toast = useToast();
 
   useEffect(() => {
     loadMeta().then(setMeta);
   }, []);
+
+  // 切换筛选/翻页时清空勾选，避免跨页批量误操作
+  useEffect(() => {
+    setSelectedIds(new Set());
+    setBatchRejectOpen(false);
+  }, [status, entityType, page]);
 
   useEffect(() => {
     let alive = true;
@@ -518,6 +530,65 @@ export default function AdminReviewPage() {
       alive = false;
     };
   }, [status, entityType, page, reloadKey]);
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const allSelected = Boolean(data && data.items.length > 0 && data.items.every((item) => selectedIds.has(item.id)));
+
+  const toggleAll = () => {
+    if (!data || data.items.length === 0) return;
+    setSelectedIds(allSelected ? new Set() : new Set(data.items.map((item) => item.id)));
+  };
+
+  const runBatch = async (action: 'approve' | 'reject', reviewNote?: string) => {
+    if (selectedIds.size === 0) return;
+    setBatchActing(action);
+    try {
+      const result = await api.post<{
+        succeeded: { id: string; targetId: string | null }[];
+        failed: { id: string; error: string }[];
+      }>('/api/admin/submissions/batch', {
+        ids: [...selectedIds],
+        action,
+        ...(action === 'reject' ? { reviewNote } : {}),
+      });
+      const okCount = result.succeeded.length;
+      const failCount = result.failed.length;
+      if (failCount === 0) {
+        toast.success(`批量${action === 'approve' ? '通过' : '驳回'}完成，共处理 ${okCount} 条`);
+      } else {
+        toast.error(`成功 ${okCount} 条，失败 ${failCount} 条：${result.failed[0].error}`);
+      }
+      setSelectedIds(new Set());
+      setBatchRejectOpen(false);
+      setBatchNote('');
+      clearMetaCache();
+      setReloadKey((key) => key + 1);
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : '批量操作失败，请稍后再试');
+    } finally {
+      setBatchActing(null);
+    }
+  };
+
+  const submitBatchReject = async () => {
+    if (batchNote.trim().length < 2) {
+      setBatchNoteError('驳回原因至少 2 个字');
+      return;
+    }
+    setBatchNoteError('');
+    await runBatch('reject', batchNote.trim());
+  };
 
   const pendingCount = data && status === 'PENDING' ? data.total : meta.stats.pendingSubmissions;
 
@@ -611,43 +682,101 @@ export default function AdminReviewPage() {
         />
       ) : data && data.items.length ? (
         <>
+          {status === 'PENDING' ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
+              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
+                <input
+                  type="checkbox"
+                  className="h-4 w-4 cursor-pointer accent-amber-600"
+                  checked={allSelected}
+                  onChange={toggleAll}
+                  aria-label="全选本页待审核投稿"
+                />
+                全选本页（{data.items.length} 条）
+              </label>
+              {selectedIds.size > 0 ? (
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted">已选 {selectedIds.size} 条</span>
+                  <Button
+                    size="sm"
+                    icon={<ShieldCheck className="h-4 w-4" />}
+                    loading={batchActing === 'approve'}
+                    disabled={batchActing !== null}
+                    onClick={() => void runBatch('approve')}
+                  >
+                    批量通过
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="danger"
+                    loading={batchActing === 'reject'}
+                    disabled={batchActing !== null}
+                    onClick={() => {
+                      setBatchNote('');
+                      setBatchNoteError('');
+                      setBatchRejectOpen(true);
+                    }}
+                  >
+                    批量驳回
+                  </Button>
+                  <Button size="sm" variant="ghost" disabled={batchActing !== null} onClick={() => setSelectedIds(new Set())}>
+                    清除选择
+                  </Button>
+                </div>
+              ) : (
+                <span className="text-xs text-muted">勾选投稿后可批量通过或驳回</span>
+              )}
+            </div>
+          ) : null}
           <Card hover={false} padded={false} className="divide-y divide-white/8 overflow-hidden">
             {data.items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setSelected(item)}
-                className="flex w-full flex-wrap items-center gap-3 px-4 py-3.5 text-left transition hover:bg-white/[0.04]"
-              >
-                <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
-                  {item.entityType === 'GROUP' ? (
-                    <UsersRound className="h-4 w-4 text-amber" />
-                  ) : item.entityType === 'GALLERY' ? (
-                    <Images className="h-4 w-4 text-violet" />
-                  ) : (
-                    <Globe2 className="h-4 w-4 text-mint" />
-                  )}
-                </span>
-                <span className="min-w-0 flex-1">
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="truncate text-sm font-medium text-ink">
-                      {submissionSummary(item.payload)}
+              <div key={item.id} className="flex items-stretch transition hover:bg-white/[0.04]">
+                {status === 'PENDING' ? (
+                  <label className="flex cursor-pointer items-center pl-4 pr-0.5">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 cursor-pointer accent-amber-600"
+                      checked={selectedIds.has(item.id)}
+                      onChange={() => toggleSelect(item.id)}
+                      aria-label={`选择投稿：${submissionSummary(item.payload)}`}
+                    />
+                  </label>
+                ) : null}
+                <button
+                  type="button"
+                  onClick={() => setSelected(item)}
+                  className="flex min-w-0 flex-1 flex-wrap items-center gap-3 px-4 py-3.5 text-left"
+                >
+                  <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                    {item.entityType === 'GROUP' ? (
+                      <UsersRound className="h-4 w-4 text-amber" />
+                    ) : item.entityType === 'GALLERY' ? (
+                      <Images className="h-4 w-4 text-violet" />
+                    ) : (
+                      <Globe2 className="h-4 w-4 text-mint" />
+                    )}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="flex flex-wrap items-center gap-2">
+                      <span className="truncate text-sm font-medium text-ink">
+                        {submissionSummary(item.payload)}
+                      </span>
+                      <Badge tone={item.mode === 'UPDATE' ? 'aurora' : 'neutral'}>
+                        {item.mode === 'UPDATE' ? '修改' : '新建'}
+                      </Badge>
                     </span>
-                    <Badge tone={item.mode === 'UPDATE' ? 'aurora' : 'neutral'}>
-                      {item.mode === 'UPDATE' ? '修改' : '新建'}
-                    </Badge>
+                    <span className="mt-0.5 block text-xs text-muted">
+                      {item.submitter?.nickname ?? '未知投稿人'} · {ENTITY_TYPE_LABELS[item.entityType]} ·
+                      {' '}
+                      {formatDateTime(item.createdAt)}
+                    </span>
                   </span>
-                  <span className="mt-0.5 block text-xs text-muted">
-                    {item.submitter?.nickname ?? '未知投稿人'} · {ENTITY_TYPE_LABELS[item.entityType]} ·
-                    {' '}
-                    {formatDateTime(item.createdAt)}
+                  <span className="flex items-center gap-3">
+                    <StatusBadge status={item.status} />
+                    <span className="text-xs text-muted">查看 ›</span>
                   </span>
-                </span>
-                <span className="flex items-center gap-3">
-                  <StatusBadge status={item.status} />
-                  <span className="text-xs text-muted">查看 ›</span>
-                </span>
-              </button>
+                </button>
+              </div>
             ))}
           </Card>
           <Pagination page={page} total={data.total} pageSize={PAGE_SIZE} onChange={setPage} />
@@ -670,6 +799,41 @@ export default function AdminReviewPage() {
         onClose={() => setSelected(null)}
         onDone={() => setReloadKey((key) => key + 1)}
       />
+
+      <Modal
+        open={batchRejectOpen}
+        onClose={() => {
+          if (batchActing === null) setBatchRejectOpen(false);
+        }}
+        eyebrow="Batch Review"
+        title={`批量驳回 ${selectedIds.size} 条投稿`}
+        description="驳回原因将展示给每位投稿人，投稿人可修改后重新提交。"
+        footer={
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" disabled={batchActing !== null} onClick={() => setBatchRejectOpen(false)}>
+              取消
+            </Button>
+            <Button
+              variant="danger"
+              loading={batchActing === 'reject'}
+              disabled={batchActing !== null}
+              onClick={() => void submitBatchReject()}
+            >
+              确认驳回
+            </Button>
+          </div>
+        }
+      >
+        <Field label="驳回原因" error={batchNoteError} hint="至少 2 个字，最多 200 字">
+          <Textarea
+            value={batchNote}
+            rows={4}
+            maxLength={200}
+            onChange={(event) => setBatchNote(event.target.value)}
+            placeholder="请说明批量驳回的原因…"
+          />
+        </Field>
+      </Modal>
     </div>
   );
 }

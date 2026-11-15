@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Loader2, ShieldCheck } from 'lucide-react';
-import { ApiError, api } from '../lib/api';
+import { ApiError, api, formatApiError } from '../lib/api';
 import { Field, Input } from './Field';
 import { useToast } from './Toast';
 
@@ -73,7 +73,12 @@ export default function EmailCodeField({
 
     setSending(true);
     try {
-      const result = await api.post<SendCodeResponse>(sendEndpoint, { email: normalizedEmail });
+      // 网络抖动自动重试一次，降低高峰期"验证码发送失败"的出现率
+      const result = await api.post<SendCodeResponse>(
+        sendEndpoint,
+        { email: normalizedEmail },
+        { timeoutMs: 20_000, retries: 1 },
+      );
       setSentTo(normalizedEmail);
       setCooldown(result.retryAfterSeconds > 0 ? result.retryAfterSeconds : 60);
       toast.success('验证码已发送，请查收邮箱');
@@ -81,7 +86,7 @@ export default function EmailCodeField({
         toast.info(`开发模式验证码：${result.devCode}`);
       }
     } catch (sendError) {
-      const message = sendError instanceof ApiError ? sendError.message : '验证码发送失败，请稍后再试';
+      const message = formatApiError(sendError, '验证码发送失败，请稍后再试');
       toast.error(message);
       // 服务端返回冷却中时，把剩余秒数同步到按钮倒计时，避免用户反复点击；
       // 优先消费结构化字段，文案正则只作旧响应兜底

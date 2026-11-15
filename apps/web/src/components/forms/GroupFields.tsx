@@ -283,11 +283,12 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
             placeholder="这个群平时都在聊什么？适合什么样的伙伴加入？"
           />
         </Field>
-        <Field label="加入链接" error={errors.joinUrl} hint="QQ 群邀请链接，选填">
+        <Field label="加入链接" error={errors.joinUrl} hint="QQ 群邀请链接等，选填，最长 2000 字符">
           <div className="relative">
             <Link2 className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/60" />
             <Input
               value={value.joinUrl}
+              maxLength={2000}
               onChange={(event) => patch({ joinUrl: event.target.value })}
               placeholder="https://…"
               className="pl-10"

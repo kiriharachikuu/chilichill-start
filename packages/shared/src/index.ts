@@ -330,7 +330,7 @@ export const groupPayloadSchema = z
       .string()
       .trim()
       .url('加入链接格式不正确')
-      .max(300)
+      .max(2000, '加入链接过长，最多 2000 个字符')
       .optional()
       .or(z.literal(''))
       .nullable(),
@@ -493,6 +493,39 @@ export const ROLE_LABELS: Record<Role, string> = {
   MODERATOR: '审核组',
   ADMIN: '管理员',
 };
+
+// ─── 权限配置表：权限 → 角色映射 ──────────────────────────────────────────────
+// 后端审核接口与前端后台入口可见性共用；新增权限时在 ROLE_PERMISSIONS 补上映射即可。
+export const PERMISSIONS = {
+  REVIEW_VIEW: 'review:view', // 查看审核台（待审核列表 / 已审核记录 / 筛选查询）
+  REVIEW_DECIDE: 'review:decide', // 同意 / 驳回他人投稿
+  REVIEW_SELF: 'review:self', // 审核自己提交的投稿（仅管理员）
+  REVIEW_BATCH: 'review:batch', // 批量审核
+  REPORT_MANAGE: 'report:manage', // 评论举报管理
+  CONTENT_MANAGE: 'content:manage', // 内容 / 活动 / 画廊 / 标签 / 分类规则管理
+  USER_MANAGE: 'user:manage', // 用户管理
+  SYSTEM_MANAGE: 'system:manage', // 系统设置
+} as const;
+
+export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
+
+export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
+  USER: [],
+  MODERATOR: [
+    PERMISSIONS.REVIEW_VIEW,
+    PERMISSIONS.REVIEW_DECIDE,
+    PERMISSIONS.REVIEW_BATCH,
+    PERMISSIONS.REPORT_MANAGE,
+  ],
+  ADMIN: Object.values(PERMISSIONS),
+};
+
+/** 判断角色是否持有指定权限；未知角色一律视为无权限 */
+export function hasPermission(role: Role | string | undefined | null, permission: Permission): boolean {
+  if (!role) return false;
+  const grants = ROLE_PERMISSIONS[role as Role];
+  return Array.isArray(grants) && grants.includes(permission);
+}
 
 // ─── 评论举报 ────────────────────────────────────────────────────────────────
 export const REPORT_STATUSES = ['PENDING', 'RESOLVED', 'DISMISSED'] as const;

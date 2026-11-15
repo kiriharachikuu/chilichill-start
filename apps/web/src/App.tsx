@@ -23,7 +23,6 @@ const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
 const AdminReviewPage = lazy(() => import('./pages/admin/AdminReviewPage'));
 const AdminContentPage = lazy(() => import('./pages/admin/AdminContentPage'));
 const AdminActivitiesPage = lazy(() => import('./pages/admin/AdminActivitiesPage'));
-const AdminGalleryPage = lazy(() => import('./pages/admin/AdminGalleryPage'));
 const AdminReportsPage = lazy(() => import('./pages/admin/AdminReportsPage'));
 const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'));
 const AdminTagsPage = lazy(() => import('./pages/admin/AdminTagsPage'));
@@ -96,7 +95,6 @@ export default function App() {
                   <Route index element={<AdminReviewPage />} />
                   <Route path="content" element={<AdminContentPage />} />
                   <Route path="activities" element={<AdminActivitiesPage />} />
-                  <Route path="gallery" element={<AdminGalleryPage />} />
                   <Route path="reports" element={<AdminReportsPage />} />
                   <Route path="settings" element={<AdminSettingsPage />} />
                   <Route path="tags" element={<AdminTagsPage />} />

@@ -230,6 +230,25 @@ export function emptyGalleryForm(): GalleryFormState {
   };
 }
 
+// 画廊投稿 payload → 编辑表单：画廊标签存的是名称字符串（不是标签 id），直接拼回输入框
+export function galleryFormFromPayload(
+  payload: Record<string, unknown> | null | undefined,
+): GalleryFormState {
+  const data = payload ?? {};
+  return {
+    imageUrl: typeof data.imageUrl === 'string' && data.imageUrl ? data.imageUrl : null,
+    imageWidth: typeof data.imageWidth === 'number' ? data.imageWidth : null,
+    imageHeight: typeof data.imageHeight === 'number' ? data.imageHeight : null,
+    title: asString(data.title),
+    description: asString(data.description),
+    tagsInput: asTagIds(data.tags).join(' '),
+    mediaType:
+      typeof data.mediaType === 'string' && (GALLERY_MEDIA_TYPES as readonly string[]).includes(data.mediaType)
+        ? (data.mediaType as GalleryMediaType)
+        : '',
+  };
+}
+
 // 标签：逗号/空格分隔，去重，最多 8 个
 export function parseGalleryTags(input: string): string[] {
   const seen = new Set<string>();

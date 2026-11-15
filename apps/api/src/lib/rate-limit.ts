@@ -40,3 +40,72 @@ export function enforceRateLimit(options: {
     }
   }
 }
+
+interface WaitingSlot {
+  resolve: () => void;
+  timer: ReturnType<typeof setTimeout>;
+}
+
+interface QueueState {
+  active: number;
+  waiting: WaitingSlot[];
+}
+
+const queues = new Map<string, QueueState>();
+
+/**
+ * 并发排队闸门：超过 concurrency 的任务进入等待队列，队列满或等待超时抛 429。
+ * 用于保护 CPU 密集型操作（如注册的 bcrypt 哈希）在突发流量下不被打爆——
+ * 请求先进队排队而不是全部并发执行导致超时。
+ */
+export async function withQueue<T>(
+  options: {
+    key: string;
+    concurrency: number;
+    maxWaiting: number;
+    waitTimeoutMs: number;
+    code: string;
+    busyMessage: string;
+  },
+  task: () => Promise<T>,
+): Promise<T> {
+  const { key, concurrency, maxWaiting, waitTimeoutMs, code, busyMessage } = options;
+  const queue = (() => {
+    const existing = queues.get(key);
+    if (existing) return existing;
+    const created: QueueState = { active: 0, waiting: [] };
+    queues.set(key, created);
+    return created;
+  })();
+
+  if (queue.active >= concurrency) {
+    if (queue.waiting.length >= maxWaiting) {
+      throw new HttpError(429, code, busyMessage);
+    }
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        const index = queue.waiting.indexOf(slot);
+        if (index >= 0) queue.waiting.splice(index, 1);
+        reject(new HttpError(429, code, busyMessage, Math.ceil(waitTimeoutMs / 1000)));
+      }, waitTimeoutMs);
+      const slot: WaitingSlot = {
+        resolve: () => {
+          clearTimeout(timer);
+          resolve();
+        },
+        timer,
+      };
+      queue.waiting.push(slot);
+    });
+  }
+
+  queue.active += 1;
+  try {
+    return await task();
+  } finally {
+    queue.active -= 1;
+    // 释放许可给队首等待者
+    const next = queue.waiting.shift();
+    next?.resolve();
+  }
+}

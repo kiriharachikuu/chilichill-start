@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { onUnauthorized } from '../lib/api';
-import { spaceHref } from '@spaceport/shared';
+import { PERMISSIONS, hasPermission, spaceHref } from '@spaceport/shared';
 import { LoginDialogProvider } from './LoginModal';
 import { useToast } from './Toast';
 
@@ -47,7 +47,8 @@ export default function AppShell() {
   const location = useLocation();
   const toast = useToast();
   const isAuthenticated = Boolean(user);
-  const isAdmin = user?.role === 'ADMIN';
+  // 后台管理入口：审核组（MODERATOR）及以上可见，与权限配置表 review:view 对齐
+  const canAccessAdmin = hasPermission(user?.role, PERMISSIONS.REVIEW_VIEW);
 
   useEffect(() => {
     setMobileOpen(false);
@@ -72,11 +73,14 @@ export default function AppShell() {
   }, [user, location.pathname, loginOpen, refresh, toast]);
 
   // 路由切换过渡：顶部信号扫描线（首挂载不触发，由首屏 boot 层负责）
+  // 外链中转页（/redirect）只是弹出跳转确认页、没有数据加载，跳过扫描线，
+  // 避免点击"加入群舱"等外链时误触发全局加载动画
   const [scan, setScan] = useState(false);
   const prevPathRef = useRef<string | null>(null);
 
   useEffect(() => {
-    if (prevPathRef.current !== null && prevPathRef.current !== location.pathname) {
+    const isExternalRedirect = location.pathname === '/redirect';
+    if (prevPathRef.current !== null && prevPathRef.current !== location.pathname && !isExternalRedirect) {
       setScan(true);
     }
     prevPathRef.current = location.pathname;
@@ -168,7 +172,7 @@ export default function AppShell() {
 
         {isAuthenticated ? (
           <div className="space-y-2 px-4 pb-4">
-            {isAdmin && (
+            {canAccessAdmin && (
               <Link
                 to="/admin"
                 className="flex h-10 w-full items-center justify-center gap-2 border border-ink bg-white text-sm font-black text-ink transition-colors hover:bg-amber-50"
@@ -249,7 +253,10 @@ export default function AppShell() {
           </button>
         </header>
 
-        <main key={location.pathname} className="min-w-0 flex-1 animate-fade-up">
+        <main
+          key={location.pathname}
+          className={`min-w-0 flex-1${location.pathname === '/redirect' ? '' : ' animate-fade-up'}`}
+        >
           <Outlet />
         </main>
 
@@ -367,8 +374,8 @@ export default function AppShell() {
                     )}
                   </div>
                 </div>
-                <div className={`grid gap-2 ${isAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
-                  {isAdmin && (
+                <div className={`grid gap-2 ${canAccessAdmin ? 'grid-cols-2' : 'grid-cols-1'}`}>
+                  {canAccessAdmin && (
                     <Link
                       to="/admin"
                       onClick={() => setMobileOpen(false)}

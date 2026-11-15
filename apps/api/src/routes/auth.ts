@@ -3,7 +3,7 @@ import type { FastifyInstance, FastifyReply } from 'fastify';
 import { z } from 'zod';
 import { env } from '../env';
 import { HttpError, isUniqueViolation } from '../lib/errors';
-import { enforceRateLimit } from '../lib/rate-limit';
+import { enforceRateLimit, withQueue } from '../lib/rate-limit';
 import { prisma } from '../prisma';
 import { consumeRegistrationCode, sendRegistrationCode } from '../services/email-verification';
 import { resetPassword, sendPasswordResetCode } from '../services/password-reset';
@@ -108,17 +108,38 @@ export function authRoutes(app: FastifyInstance) {
     const body = registerSchema.parse(request.body ?? {});
     const email = body.email.toLowerCase();
 
+    // 注册防刷限流：阈值放宽（多用户共用出口 IP 不误伤），只拦脚本刷注册
+    enforceRateLimit({
+      key: `register:ip:${request.ip || 'unknown'}`,
+      limit: 30,
+      windowMs: 60_000,
+      code: 'REGISTER_IP_LIMIT',
+      message: '注册请求过于频繁，请稍后再试',
+    });
+
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
       throw new HttpError(409, 'EMAIL_TAKEN', '该邮箱已注册');
     }
 
-    // 先校验验证码再哈希密码，避免错误请求消耗 bcrypt 计算资源
-    await consumeRegistrationCode(email, body.code);
-
-    const passwordHash = await bcrypt.hash(body.password, 10);
-
-    const user = await createUserWithUid({ email, nickname: body.nickname, passwordHash });
+    // 高并发过载保护：bcrypt 哈希是 CPU 密集操作，超并发上限的请求排队处理，
+    // 队列满/等待超时返回友好提示（带 retryAfterSeconds），而不是请求堆积到客户端超时
+    const user = await withQueue(
+      {
+        key: 'register',
+        concurrency: 4,
+        maxWaiting: 100,
+        waitTimeoutMs: 10_000,
+        code: 'REGISTER_BUSY',
+        busyMessage: '当前注册人数较多，正在排队处理，请稍候几秒后重试',
+      },
+      async () => {
+        // 验证码校验与消费放在排队获许之后：排队超时的请求不会浪费验证码
+        await consumeRegistrationCode(email, body.code);
+        const passwordHash = await bcrypt.hash(body.password, 10);
+        return createUserWithUid({ email, nickname: body.nickname, passwordHash });
+      },
+    );
 
     issueToken(app, reply, user);
     return reply.status(201).send({ user: toPublicUser(user) });
