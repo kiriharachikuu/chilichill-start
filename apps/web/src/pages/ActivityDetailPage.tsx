@@ -73,6 +73,27 @@ export default function ActivityDetailPage() {
   const status = activityStatusOf(activity);
   const customHtml = activity.contentHtml?.trim() ? activity.contentHtml : null;
 
+  if (customHtml) {
+    // 站长上传的自定义活动页：占满侧栏右侧整个视口（全宽全高，而非内容区内的小窗）
+    // sandbox 隔离渲染（无 allow-same-origin，无法触碰主站 DOM/Cookie）
+    return (
+      <div className="relative h-[calc(100svh-3.5rem)] w-full lg:h-screen">
+        <iframe
+          sandbox="allow-scripts allow-popups allow-forms"
+          srcDoc={customHtml}
+          title={activity.title}
+          className="h-full w-full bg-white"
+        />
+        <Link
+          to="/"
+          className="absolute left-3 top-3 z-10 inline-flex items-center gap-1.5 border border-ink bg-white/95 px-3 py-1.5 text-xs font-bold text-ink shadow-sm backdrop-blur transition-colors hover:bg-amber-50"
+        >
+          <ArrowLeft className="h-3.5 w-3.5" /> 返回首页
+        </Link>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto w-full max-w-5xl px-4 py-10 sm:px-6 lg:py-14">
       <Link
@@ -82,16 +103,7 @@ export default function ActivityDetailPage() {
         <ArrowLeft className="h-3.5 w-3.5" /> 返回首页
       </Link>
 
-      {customHtml ? (
-        // 站长上传的自定义活动页：sandbox 隔离渲染（无 allow-same-origin，无法触碰主站 DOM/Cookie）
-        <iframe
-          sandbox="allow-scripts allow-popups allow-forms"
-          srcDoc={customHtml}
-          title={activity.title}
-          className="h-[calc(100svh-9rem)] min-h-[480px] w-full border border-ink bg-white"
-        />
-      ) : (
-        <article className="border border-ink bg-white">
+      <article className="border border-ink bg-white">
           <div className="relative border-b border-space-200 bg-space-50">
             {activity.coverUrl ? (
               <img
@@ -141,7 +153,6 @@ export default function ActivityDetailPage() {
             ) : null}
           </div>
         </article>
-      )}
     </div>
   );
 }
