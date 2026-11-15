@@ -14,7 +14,7 @@ import {
   Trash2,
   UsersRound,
 } from 'lucide-react';
-import type { GalleryImage, Group, Paginated, Site } from '@spaceport/shared';
+import { GROUP_PLATFORM_LABELS, type GalleryImage, type Group, type Paginated, type Site } from '@spaceport/shared';
 import { ApiError, api } from '../../lib/api';
 import { useDebouncedValue } from '../../lib/hooks';
 import { formatDateTime } from '../../lib/format';
@@ -75,7 +75,10 @@ function itemTitle(item: ContentItem): string {
 
 // 群舱/站点带 updatedAt；画廊作品只有 createdAt（上传后不跟踪更新时间）
 function itemSubtitle(item: ContentItem): string {
-  if (isGroup(item)) return `${item.groupNumber} · ${item.city ?? item.regionName ?? '线上 / 待定'}`;
+  if (isGroup(item))
+    return `${item.groupNumber ?? GROUP_PLATFORM_LABELS[item.platform ?? 'QQ']} · ${
+      item.city ?? item.regionName ?? '线上 / 待定'
+    }`;
   if (isGallery(item))
     return `${item.uploader ? `${item.uploader.nickname} · ` : ''}上传于 ${formatDateTime(item.createdAt)}`;
   return item.url;

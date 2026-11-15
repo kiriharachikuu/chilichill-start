@@ -42,7 +42,10 @@ model User {
 model Group {
   id          String      @id @default(cuid())
   name        String
-  groupNumber String      @unique
+  // 群所属平台：QQ / WEIBO / XIUDONG / XIAOHONGSHU
+  platform    String      @default("QQ")
+  // 仅 QQ 群有群号；其他平台粉丝群只上传二维码与头像
+  groupNumber String?     @unique
   type        String
   city        String?
   province    String?

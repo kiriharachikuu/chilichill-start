@@ -1,5 +1,5 @@
 import type { Prisma, PrismaClient } from '../../generated/prisma/client';
-import { groupPayloadSchema, type GroupPayload } from '@spaceport/shared';
+import { groupPayloadSchema, qqGroupAvatarUrl, type GroupPayload } from '@spaceport/shared';
 import { HttpError } from '../../lib/errors';
 import { serializeGroup, type GroupWithTags } from '../../lib/serialize';
 import { assertTagsValid, resolveRegion } from '../../services/classification';
@@ -62,7 +62,9 @@ async function apply(
   const needCity = data.type === 'REGION' || data.type === 'COLLEGE';
   const fields = {
     name: data.name,
-    groupNumber: data.groupNumber,
+    platform: data.platform,
+    // 仅 QQ 群记录群号；微博 / 秀动 / 小红书粉丝群只上传二维码与头像
+    groupNumber: data.platform === 'QQ' ? data.groupNumber! : null,
     type: data.type,
     province: needCity ? data.province ?? null : null,
     city: needCity ? data.city ?? null : null,
@@ -73,7 +75,11 @@ async function apply(
     purpose: data.purpose ?? null,
     joinUrl: data.joinUrl || null,
     qrcodeUrl: data.qrcodeUrl || null,
-    avatarUrl: data.avatarUrl || null,
+    // QQ 群未手动上传头像时，凭群号自动抓取官方头像
+    avatarUrl:
+      data.platform === 'QQ' && data.groupNumber && !data.avatarUrl
+        ? qqGroupAvatarUrl(data.groupNumber)
+        : data.avatarUrl || null,
   };
 
   const tagLinks = [...new Set(data.tags)].map((tagId) => ({ tagId }));
@@ -89,11 +95,14 @@ async function apply(
       throw new HttpError(404, 'NOT_FOUND', '目标群组不存在');
     }
 
-    const conflict = await tx.group.findFirst({
-      where: { groupNumber: data.groupNumber, id: { not: targetId } },
-    });
-    if (conflict) {
-      throw new HttpError(409, 'GROUP_CONFLICT', '该群号已被收录');
+    // 群号重复校验仅在填写了群号时进行（非 QQ 平台群号为空）
+    if (fields.groupNumber) {
+      const conflict = await tx.group.findFirst({
+        where: { groupNumber: fields.groupNumber, id: { not: targetId } },
+      });
+      if (conflict) {
+        throw new HttpError(409, 'GROUP_CONFLICT', '该群号已被收录');
+      }
     }
 
     await tx.group.update({ where: { id: targetId }, data: fields });
@@ -103,9 +112,11 @@ async function apply(
     return { targetId };
   }
 
-  const conflict = await tx.group.findUnique({ where: { groupNumber: data.groupNumber } });
-  if (conflict) {
-    throw new HttpError(409, 'GROUP_CONFLICT', '该群号已被收录');
+  if (fields.groupNumber) {
+    const conflict = await tx.group.findUnique({ where: { groupNumber: fields.groupNumber } });
+    if (conflict) {
+      throw new HttpError(409, 'GROUP_CONFLICT', '该群号已被收录');
+    }
   }
 
   const created = await tx.group.create({

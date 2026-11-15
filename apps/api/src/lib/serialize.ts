@@ -5,6 +5,7 @@ import type {
   GalleryCommentItem,
   GalleryImage,
   Group,
+  GroupPlatform,
   GroupType,
   PublicUploader,
   RegionCode,
@@ -87,6 +88,7 @@ export function serializeGroup(
   const result: Group = {
     id: group.id,
     name: group.name,
+    platform: (group.platform ?? 'QQ') as GroupPlatform,
     groupNumber: group.groupNumber,
     type: group.type as GroupType,
     city: group.city,

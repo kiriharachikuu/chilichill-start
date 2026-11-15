@@ -1,7 +1,9 @@
 import {
+  GROUP_PLATFORM_LABELS,
   GROUP_TYPE_LABELS,
   formatLocation,
   type Group,
+  type GroupPlatform,
   type GroupType,
   type Tag,
 } from '@spaceport/shared';
@@ -38,6 +40,13 @@ function typeLabel(value: unknown): string {
   return display(value);
 }
 
+function platformLabel(value: unknown): string {
+  if (typeof value === 'string' && value in GROUP_PLATFORM_LABELS) {
+    return GROUP_PLATFORM_LABELS[value as GroupPlatform];
+  }
+  return display(value);
+}
+
 export function groupDiff(target: Group, payload: Record<string, unknown>, pool: Tag[]): DiffRow[] {
   const rows: DiffRow[] = [];
   const push = (key: string, label: string, before: unknown, after: unknown) => {
@@ -47,6 +56,13 @@ export function groupDiff(target: Group, payload: Record<string, unknown>, pool:
   };
 
   push('name', '群名', target.name, payload.name);
+  rows.push({
+    key: 'platform',
+    label: '群平台',
+    before: GROUP_PLATFORM_LABELS[target.platform],
+    after: platformLabel(payload.platform),
+    changed: GROUP_PLATFORM_LABELS[target.platform] !== platformLabel(payload.platform),
+  });
   push('groupNumber', '群号', target.groupNumber, payload.groupNumber);
   rows.push({
     key: 'type',

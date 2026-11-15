@@ -1,13 +1,24 @@
-import { useMemo, useEffect, useState } from 'react';
+import { useMemo, useEffect, useRef, useState } from 'react';
 import {
+  AtSign,
   GraduationCap,
+  Heart,
   Link2,
   MapPin,
+  MessageCircle,
   MoreHorizontal,
+  Ticket,
   Users,
   Wand2,
 } from 'lucide-react';
-import { GROUP_TYPE_LABELS, type GroupType, type MetaResponse, type Tag } from '@spaceport/shared';
+import {
+  GROUP_TYPE_LABELS,
+  qqGroupAvatarUrl,
+  type GroupPlatform,
+  type GroupType,
+  type MetaResponse,
+  type Tag,
+} from '@spaceport/shared';
 import { api } from '../../lib/api';
 import type { FieldErrors, GroupFormState } from '../../lib/submissionForms';
 import Badge from '../Badge';
@@ -47,6 +58,18 @@ const TYPE_OPTIONS: {
     icon: MoreHorizontal,
     tone: 'border-white/30 bg-white/10 text-ink/85',
   },
+];
+
+const PLATFORM_OPTIONS: {
+  value: GroupPlatform;
+  label: string;
+  desc: string;
+  icon: typeof Users;
+}[] = [
+  { value: 'QQ', label: 'QQ 群', desc: '填群号自动抓官方头像', icon: MessageCircle },
+  { value: 'WEIBO', label: '微博粉丝群', desc: '上传二维码与头像即可', icon: AtSign },
+  { value: 'XIUDONG', label: '秀动粉丝群', desc: '上传二维码与头像即可', icon: Ticket },
+  { value: 'XIAOHONGSHU', label: '小红书粉丝群', desc: '上传二维码与头像即可', icon: Heart },
 ];
 
 const NEEDS_CITY: GroupType[] = ['REGION', 'COLLEGE'];
@@ -94,6 +117,22 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
     };
   }, [value.name, value.description, value.type]);
 
+  // 始终持有最新表单值，供防抖回调使用，避免闭包旧值覆盖用户新输入
+  const latest = useRef(value);
+  latest.current = value;
+
+  // QQ 群：群号填写完成后自动抓取官方头像（不覆盖手动上传的头像）
+  useEffect(() => {
+    if (value.platform !== 'QQ' || !/^\d{5,12}$/.test(value.groupNumber)) return;
+    const timer = window.setTimeout(() => {
+      const current = latest.current;
+      if (current.platform !== 'QQ') return;
+      if (current.avatarUrl && !current.avatarUrl.includes('p.qlogo.cn')) return;
+      onChange({ ...current, avatarUrl: qqGroupAvatarUrl(current.groupNumber) });
+    }, 400);
+    return () => window.clearTimeout(timer);
+  }, [value.platform, value.groupNumber]);
+
   const toggleTag = (tagId: string) => {
     if (value.tags.includes(tagId)) {
       patch({ tags: value.tags.filter((id) => id !== tagId) });
@@ -111,6 +150,46 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
 
   return (
     <div className="space-y-6">
+      <div>
+        <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-ink/80">
+          群平台 <span className="text-coral">*</span>
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          {PLATFORM_OPTIONS.map((option) => {
+            const Icon = option.icon;
+            const active = value.platform === option.value;
+            return (
+              <button
+                key={option.value}
+                type="button"
+                onClick={() => {
+                  if (option.value === value.platform) return;
+                  // 切到非 QQ 平台时，清掉自动抓取的 QQ 头像，避免残留无效链接
+                  const avatarUrl =
+                    option.value !== 'QQ' && value.avatarUrl.includes('p.qlogo.cn')
+                      ? ''
+                      : value.avatarUrl;
+                  patch({ platform: option.value, avatarUrl });
+                }}
+                className={`flex items-start gap-2.5 rounded-xl border px-3 py-2.5 text-left transition ${
+                  active
+                    ? 'border-aurora/50 bg-aurora/10 text-aurora -translate-y-0.5 shadow-glow'
+                    : 'border-white/10 bg-white/[0.04] text-ink hover:-translate-y-0.5 hover:border-white/25'
+                }`}
+              >
+                <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${active ? '' : 'text-muted'}`} />
+                <span>
+                  <span className="block text-sm font-medium">{option.label}</span>
+                  <span className={`mt-0.5 block text-[11px] ${active ? 'text-ink/80' : 'text-muted'}`}>
+                    {option.desc}
+                  </span>
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div>
         <p className="mb-2 flex items-center gap-1.5 text-xs font-medium text-ink/80">
           群类型 <span className="text-coral">*</span>
@@ -259,15 +338,17 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
             placeholder="例如：广州 ChiliChill 同好群"
           />
         </Field>
-        <Field label="群号" required error={errors.groupNumber} hint="5-12 位数字">
-          <Input
-            value={value.groupNumber}
-            inputMode="numeric"
-            maxLength={12}
-            onChange={(event) => patch({ groupNumber: event.target.value.replace(/[^\d]/g, '') })}
-            placeholder="例如：123456789"
-          />
-        </Field>
+        {value.platform === 'QQ' ? (
+          <Field label="群号" required error={errors.groupNumber} hint="5-12 位数字，填写后自动抓取群头像">
+            <Input
+              value={value.groupNumber}
+              inputMode="numeric"
+              maxLength={12}
+              onChange={(event) => patch({ groupNumber: event.target.value.replace(/[^\d]/g, '') })}
+              placeholder="例如：123456789"
+            />
+          </Field>
+        ) : null}
         <Field
           label="群简介"
           required
@@ -301,8 +382,12 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
         value={value.avatarUrl || null}
         onChange={(url) => patch({ avatarUrl: url ?? '' })}
         variant="square"
-        label="群头像（选填）"
-        hint="支持 png / jpg / jpeg / webp，不超过 5MB"
+        label={value.platform === 'QQ' ? '群头像（选填）' : '粉丝群头像（建议上传）'}
+        hint={
+          value.platform === 'QQ'
+            ? '填写群号后自动抓取官方头像，也可手动上传替换（png / jpg / jpeg / webp，不超过 5MB）'
+            : '建议上传粉丝群头像，支持 png / jpg / jpeg / webp，不超过 5MB'
+        }
       />
 
       <ImageUploader
@@ -310,7 +395,11 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
         onChange={(url) => patch({ qrcodeUrl: url ?? '' })}
         variant="square"
         label="群二维码（选填）"
-        hint="用于入群预览，支持 png / jpg / jpeg / webp，不超过 5MB"
+        hint={
+          value.platform === 'QQ'
+            ? '用于入群预览，支持 png / jpg / jpeg / webp，不超过 5MB'
+            : '微博 / 秀动 / 小红书粉丝群无需填写群号，上传二维码与头像即可'
+        }
       />
     </div>
   );

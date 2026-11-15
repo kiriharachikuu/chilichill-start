@@ -1,5 +1,6 @@
 import {
   GALLERY_MEDIA_TYPES,
+  GROUP_PLATFORMS,
   GROUP_TYPES,
   GROUP_TYPE_LABELS,
   gallerySubmissionPayloadSchema,
@@ -8,6 +9,7 @@ import {
   type GalleryMediaType,
   type GallerySubmissionPayload,
   type Group,
+  type GroupPlatform,
   type GroupType,
   type Site,
 } from '@spaceport/shared';
@@ -16,6 +18,7 @@ export type FieldErrors = Record<string, string>;
 
 export interface GroupFormState {
   name: string;
+  platform: GroupPlatform;
   groupNumber: string;
   type: GroupType | '';
   province: string;
@@ -40,6 +43,7 @@ export interface SiteFormState {
 export function emptyGroupForm(): GroupFormState {
   return {
     name: '',
+    platform: 'QQ',
     groupNumber: '',
     type: '',
     province: '',
@@ -74,8 +78,13 @@ export function groupFormFromPayload(payload: Record<string, unknown> | null | u
   const type = typeof data.type === 'string' && (GROUP_TYPES as readonly string[]).includes(data.type)
     ? (data.type as GroupType)
     : '';
+  const platform =
+    typeof data.platform === 'string' && (GROUP_PLATFORMS as readonly string[]).includes(data.platform)
+      ? (data.platform as GroupPlatform)
+      : 'QQ';
   return {
     name: asString(data.name),
+    platform,
     groupNumber: asString(data.groupNumber),
     type,
     province: asString(data.province),
@@ -93,7 +102,8 @@ export function groupFormFromPayload(payload: Record<string, unknown> | null | u
 export function groupFormFromGroup(group: Group): GroupFormState {
   return {
     name: group.name,
-    groupNumber: group.groupNumber,
+    platform: group.platform ?? 'QQ',
+    groupNumber: group.groupNumber ?? '',
     type: group.type,
     province: group.province ?? '',
     city: group.city ?? '',
@@ -132,7 +142,9 @@ export function groupPayloadFromForm(form: GroupFormState): Record<string, unkno
   const needCity = form.type === 'REGION' || form.type === 'COLLEGE';
   return {
     name: form.name.trim(),
-    groupNumber: form.groupNumber.trim(),
+    platform: form.platform,
+    // 非 QQ 平台粉丝群不填群号；QQ 群号由 schema 校验必填
+    groupNumber: form.platform === 'QQ' ? form.groupNumber.trim() : '',
     type: form.type,
     province: needCity && form.province ? form.province : null,
     city: needCity && form.city ? form.city : null,

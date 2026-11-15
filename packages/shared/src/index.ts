@@ -9,6 +9,21 @@ export const GROUP_TYPE_LABELS: Record<GroupType, string> = {
   OTHER: '其他类型',
 };
 
+// 粉丝群所属平台：QQ 群可凭群号自动抓取头像，其余平台仅上传二维码与头像
+export const GROUP_PLATFORMS = ['QQ', 'WEIBO', 'XIUDONG', 'XIAOHONGSHU'] as const;
+export type GroupPlatform = (typeof GROUP_PLATFORMS)[number];
+export const GROUP_PLATFORM_LABELS: Record<GroupPlatform, string> = {
+  QQ: 'QQ 群',
+  WEIBO: '微博粉丝群',
+  XIUDONG: '秀动粉丝群',
+  XIAOHONGSHU: '小红书粉丝群',
+};
+
+// QQ 群官方头像接口，{number} 为群号，640 为尺寸档位
+export function qqGroupAvatarUrl(groupNumber: string): string {
+  return `https://p.qlogo.cn/gh/${groupNumber}/${groupNumber}/640/`;
+}
+
 export const REGIONS = [
   { code: 'NORTH', name: '华北' },
   { code: 'NORTHEAST', name: '东北' },
@@ -127,7 +142,9 @@ export interface PublicUploader {
 export interface Group {
   id: string;
   name: string;
-  groupNumber: string;
+  platform: GroupPlatform;
+  // 仅 QQ 群有群号；微博 / 秀动 / 小红书粉丝群只提供二维码与头像
+  groupNumber: string | null;
   type: GroupType;
   city: string | null;
   province: string | null;
@@ -319,7 +336,14 @@ export function activityHref(id: string): string {
 export const groupPayloadSchema = z
   .object({
     name: z.string().trim().min(2, '群名至少 2 个字').max(40),
-    groupNumber: z.string().trim().regex(/^\d{5,12}$/, '群号需为 5-12 位数字'),
+    platform: z.enum(GROUP_PLATFORMS),
+    // 群号仅 QQ 群必填；其余平台粉丝群没有群号，留空即可
+    groupNumber: z
+      .string()
+      .trim()
+      .regex(/^\d{5,12}$/, '群号需为 5-12 位数字')
+      .optional()
+      .or(z.literal('')),
     type: z.enum(GROUP_TYPES),
     city: z.string().trim().max(30).optional().nullable(),
     province: z.string().trim().max(30).optional().nullable(),
@@ -339,6 +363,21 @@ export const groupPayloadSchema = z
     tags: tagIds,
   })
   .superRefine((v, ctx) => {
+    if (v.platform === 'QQ') {
+      if (!v.groupNumber || !/^\d{5,12}$/.test(v.groupNumber)) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ['groupNumber'],
+          message: 'QQ 群需填写 5-12 位数字群号',
+        });
+      }
+    } else if (v.groupNumber) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['groupNumber'],
+        message: '该平台粉丝群无需填写群号',
+      });
+    }
     if ((v.type === 'REGION' || v.type === 'COLLEGE') && !v.city) {
       ctx.addIssue({
         code: z.ZodIssueCode.custom,

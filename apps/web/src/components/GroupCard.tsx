@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Copy, ExternalLink, QrCode } from 'lucide-react';
 import {
+  GROUP_PLATFORM_LABELS,
   GROUP_TYPE_LABELS,
   formatLocation,
   type Group,
@@ -35,6 +36,7 @@ export default function GroupCard({ group }: { group: Group }) {
         : [group.regionName ?? '待定', place || '未选城市'].filter(Boolean).join(' · ');
 
   const handleCopy = async () => {
+    if (!group.groupNumber) return;
     const ok = await copyText(group.groupNumber);
     if (ok) toast.success(`群号 ${group.groupNumber} 已复制到剪贴板`);
     else toast.error('复制失败，请手动选择群号');
@@ -57,6 +59,9 @@ export default function GroupCard({ group }: { group: Group }) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge tone={TYPE_TONES[group.type]}>{GROUP_TYPE_LABELS[group.type]}</Badge>
+              {group.platform !== 'QQ' ? (
+                <Badge tone="violet">{GROUP_PLATFORM_LABELS[group.platform]}</Badge>
+              ) : null}
               {group.regionName ? (
                 <span className="text-xs text-muted">{location}</span>
               ) : null}
@@ -86,13 +91,15 @@ export default function GroupCard({ group }: { group: Group }) {
         ) : null}
 
         <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/8 pt-4">
-          <button
-            type="button"
-            onClick={() => void handleCopy()}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 font-mono text-xs text-ink/85 transition hover:border-amber/40 hover:text-amber"
-          >
-            <Copy className="h-3.5 w-3.5" /> {group.groupNumber}
-          </button>
+          {group.groupNumber ? (
+            <button
+              type="button"
+              onClick={() => void handleCopy()}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 font-mono text-xs text-ink/85 transition hover:border-amber/40 hover:text-amber"
+            >
+              <Copy className="h-3.5 w-3.5" /> {group.groupNumber}
+            </button>
+          ) : null}
           <span className="ml-auto flex items-center gap-2">
             {group.qrcodeUrl ? (
               <Button variant="ghost" size="sm" icon={<QrCode className="h-4 w-4" />} onClick={() => setQrOpen(true)}>
@@ -124,10 +131,14 @@ export default function GroupCard({ group }: { group: Group }) {
               二维码暂未上传
             </div>
           )}
-          <p className="text-xs text-muted">扫码或使用群号 {group.groupNumber} 加入</p>
-          <Button variant="secondary" size="sm" icon={<Copy className="h-4 w-4" />} onClick={() => void handleCopy()}>
-            复制群号
-          </Button>
+          <p className="text-xs text-muted">
+            {group.groupNumber ? `扫码或使用群号 ${group.groupNumber} 加入` : '扫码加入粉丝群'}
+          </p>
+          {group.groupNumber ? (
+            <Button variant="secondary" size="sm" icon={<Copy className="h-4 w-4" />} onClick={() => void handleCopy()}>
+              复制群号
+            </Button>
+          ) : null}
         </div>
       </Modal>
     </>

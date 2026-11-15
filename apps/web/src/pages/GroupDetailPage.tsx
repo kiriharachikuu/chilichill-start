@@ -10,7 +10,13 @@ import {
   QrCode,
   Wifi,
 } from 'lucide-react';
-import { GROUP_TYPE_LABELS, formatLocation, spaceHref, type Group } from '@spaceport/shared';
+import {
+  GROUP_PLATFORM_LABELS,
+  GROUP_TYPE_LABELS,
+  formatLocation,
+  spaceHref,
+  type Group,
+} from '@spaceport/shared';
 import { api } from '../lib/api';
 import { copyText, formatDate, gradientFor, initialOf } from '../lib/format';
 import { externalRedirectHref } from '../lib/redirect';
@@ -84,6 +90,7 @@ export default function GroupDetailPage() {
   }
 
   const handleCopy = async () => {
+    if (!group.groupNumber) return;
     const ok = await copyText(group.groupNumber);
     if (ok) toast.success(`群号 ${group.groupNumber} 已复制到剪贴板`);
     else toast.error('复制失败，请手动选择群号');
@@ -111,6 +118,9 @@ export default function GroupDetailPage() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={TYPE_TONES[group.type]}>{GROUP_TYPE_LABELS[group.type]}</Badge>
+                {group.platform !== 'QQ' ? (
+                  <Badge tone="violet">{GROUP_PLATFORM_LABELS[group.platform]}</Badge>
+                ) : null}
                 {group.regionName ? <Badge tone="neutral">{group.regionName}大区</Badge> : null}
               </div>
               <h1 className="mt-2 text-2xl font-semibold text-ink sm:text-3xl">{group.name}</h1>
@@ -144,16 +154,23 @@ export default function GroupDetailPage() {
           </div>
 
           <div className="space-y-3 rounded-xl border border-white/10 bg-white/[0.03] p-4">
-            <div className="flex items-center justify-between gap-3">
-              <span className="text-xs text-muted">群号</span>
-              <button
-                type="button"
-                onClick={() => void handleCopy()}
-                className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-sm text-ink transition hover:border-amber/40 hover:text-amber"
-              >
-                {group.groupNumber} <Copy className="h-3.5 w-3.5" />
-              </button>
-            </div>
+            {group.groupNumber ? (
+              <div className="flex items-center justify-between gap-3">
+                <span className="text-xs text-muted">群号</span>
+                <button
+                  type="button"
+                  onClick={() => void handleCopy()}
+                  className="inline-flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 font-mono text-sm text-ink transition hover:border-amber/40 hover:text-amber"
+                >
+                  {group.groupNumber} <Copy className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted">群平台</span>
+                <span className="text-ink">{GROUP_PLATFORM_LABELS[group.platform]}</span>
+              </div>
+            )}
             {group.type === 'COLLEGE' && group.school ? (
               <div className="flex items-center justify-between text-xs">
                 <span className="flex items-center gap-1.5 text-muted">
@@ -245,7 +262,9 @@ export default function GroupDetailPage() {
               二维码暂未上传
             </div>
           )}
-          <p className="text-xs text-muted">扫码或使用群号 {group.groupNumber} 加入</p>
+          <p className="text-xs text-muted">
+            {group.groupNumber ? `扫码或使用群号 ${group.groupNumber} 加入` : '扫码加入粉丝群'}
+          </p>
         </div>
       </Modal>
     </div>
