@@ -6,6 +6,7 @@ import { HttpError, isUniqueViolation } from '../lib/errors';
 import { enforceRateLimit, withQueue } from '../lib/rate-limit';
 import { prisma } from '../prisma';
 import { consumeRegistrationCode, sendRegistrationCode } from '../services/email-verification';
+import { getStoredRegistrationSettings } from '../services/registration-settings';
 import { resetPassword, sendPasswordResetCode } from '../services/password-reset';
 
 const COOKIE_NAME = 'spaceport_token';
@@ -16,7 +17,12 @@ const emailSchema = z.object({
 });
 
 const registerSchema = emailSchema.extend({
-  code: z.string().trim().regex(/^[0-9]{6}$/, '请输入 6 位数字验证码'),
+  // 验证码仅在后台开关开启时必填（见 register 路由内的条件校验）
+  code: z
+    .string()
+    .trim()
+    .regex(/^[0-9]{6}$/, '请输入 6 位数字验证码')
+    .optional(),
   password: z.string().min(8, '密码至少 8 位').max(72, '密码最多 72 位'),
   nickname: z.string().trim().min(1, '昵称不能为空').max(20, '昵称最多 20 个字'),
 });
@@ -99,6 +105,12 @@ export function authRoutes(app: FastifyInstance) {
   // 发送注册邮箱验证码：同邮箱冷却 + 小时配额 + IP 限流，失败重试在邮件服务内完成
   app.post('/api/auth/email-code', async (request, reply) => {
     const body = emailSchema.parse(request.body ?? {});
+
+    // 后台关闭注册邮箱验证码时，本接口不再发送
+    if (!(await getStoredRegistrationSettings()).emailCodeRequired) {
+      throw new HttpError(400, 'CODE_DISABLED', '注册邮箱验证码未开启，可直接注册');
+    }
+
     const result = await sendRegistrationCode(body.email, request.ip, request.log);
     reply.header('Cache-Control', 'no-store');
     return reply.send(result);
@@ -122,6 +134,12 @@ export function authRoutes(app: FastifyInstance) {
       throw new HttpError(409, 'EMAIL_TAKEN', '该邮箱已注册');
     }
 
+    // 注册邮箱验证码开关（后台可配）：开启时必填并消费验证码，关闭时跳过
+    const registrationSettings = await getStoredRegistrationSettings();
+    if (registrationSettings.emailCodeRequired && !body.code) {
+      throw new HttpError(400, 'VALIDATION_ERROR', '请输入 6 位数字验证码');
+    }
+
     // 高并发过载保护：bcrypt 哈希是 CPU 密集操作，超并发上限的请求排队处理，
     // 队列满/等待超时返回友好提示（带 retryAfterSeconds），而不是请求堆积到客户端超时
     const user = await withQueue(
@@ -135,7 +153,9 @@ export function authRoutes(app: FastifyInstance) {
       },
       async () => {
         // 验证码校验与消费放在排队获许之后：排队超时的请求不会浪费验证码
-        await consumeRegistrationCode(email, body.code);
+        if (registrationSettings.emailCodeRequired && body.code) {
+          await consumeRegistrationCode(email, body.code);
+        }
         const passwordHash = await bcrypt.hash(body.password, 10);
         return createUserWithUid({ email, nickname: body.nickname, passwordHash });
       },

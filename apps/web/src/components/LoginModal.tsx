@@ -1,7 +1,8 @@
-import { createContext, useContext, useState, type FormEvent, type ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { Lock, Mail, UserRound } from 'lucide-react';
 import { api, formatApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
+import { loadMeta } from '../lib/meta';
 import Button from '../components/Button';
 import EmailCodeField from '../components/EmailCodeField';
 import Modal from '../components/Modal';
@@ -58,15 +59,29 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  // 注册是否需要邮箱验证码由后台「注册设置」控制，默认 true 与历史行为一致
+  const [emailCodeRequired, setEmailCodeRequired] = useState(true);
   const { login, register } = useAuth();
   const toast = useToast();
+
+  // 弹窗打开时拉取站点元数据中的注册开关（meta 缓存失败时保持默认开启）
+  useEffect(() => {
+    if (!open) return;
+    let alive = true;
+    void loadMeta().then((meta) => {
+      if (alive) setEmailCodeRequired(meta.registration.emailCodeRequired);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [open]);
 
   const validate = (): boolean => {
     const nextErrors: Record<string, string> = {};
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) nextErrors.email = '请输入有效的邮箱地址';
     if (password.length < 8) nextErrors.password = '密码至少 8 位';
     if (tab === 'register' && nickname.trim().length < 2) nextErrors.nickname = '昵称至少 2 个字';
-    if ((tab === 'register' || tab === 'reset') && !/^\d{6}$/.test(code)) {
+    if ((tab === 'reset' || (tab === 'register' && emailCodeRequired)) && !/^\d{6}$/.test(code)) {
       nextErrors.code = '请输入 6 位数字验证码';
     }
     setErrors(nextErrors);
@@ -83,7 +98,7 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         await login(email.trim(), password);
         toast.success('登舱成功，祝你探索愉快');
       } else if (tab === 'register') {
-        await register(email.trim(), password, nickname.trim(), code);
+        await register(email.trim(), password, nickname.trim(), emailCodeRequired ? code : null);
         toast.success('账号已创建，欢迎加入空间站');
       } else {
         await api.post<void>('/api/auth/reset-password', { email: email.trim(), code, password });
@@ -160,7 +175,7 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           </div>
         </Field>
 
-        {tab === 'register' || tab === 'reset' ? (
+        {tab === 'reset' || (tab === 'register' && emailCodeRequired) ? (
           <EmailCodeField
             email={email}
             value={code}

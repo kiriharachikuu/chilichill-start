@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { REGIONS, type MetaResponse, type NavModule } from '@spaceport/shared';
 import { toTag } from '../lib/serialize';
 import { prisma } from '../prisma';
+import { getStoredRegistrationSettings } from '../services/registration-settings';
 
 const MODULES: NavModule[] = [
   { key: 'groups', label: 'Q群导航', path: '/groups', icon: 'users', enabled: true },
@@ -15,7 +16,7 @@ export function metaRoutes(app: FastifyInstance) {
   app.get('/api/meta', { preHandler: [app.optionalAuthenticate] }, async (request) => {
     const canSeePending = request.user?.role === 'ADMIN' || request.user?.role === 'MODERATOR';
 
-    const [cityCounts, cities, groupTags, siteTags, groups, sites, galleryImages, pendingSubmissions] =
+    const [cityCounts, cities, groupTags, siteTags, groups, sites, galleryImages, pendingSubmissions, registrationSettings] =
       await Promise.all([
       prisma.cityRegionRule.groupBy({ by: ['regionCode'], _count: { _all: true } }),
       prisma.cityRegionRule.findMany({
@@ -35,6 +36,7 @@ export function metaRoutes(app: FastifyInstance) {
       canSeePending
         ? prisma.submission.count({ where: { status: 'PENDING' } })
         : Promise.resolve(0),
+      getStoredRegistrationSettings(),
     ]);
 
     const cityCountMap = new Map(cityCounts.map((item) => [item.regionCode, item._count._all]));
@@ -62,6 +64,7 @@ export function metaRoutes(app: FastifyInstance) {
         pendingSubmissions,
       },
       modules: MODULES,
+      registration: { emailCodeRequired: registrationSettings.emailCodeRequired },
     };
 
     return response;

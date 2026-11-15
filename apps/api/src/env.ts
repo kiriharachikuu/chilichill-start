@@ -69,13 +69,18 @@ if (raw.NODE_ENV === 'production') {
   if (raw.JWT_SECRET.length < 32) {
     throw new Error('生产环境 JWT_SECRET 长度必须至少 32 位');
   }
-  if (!raw.RESEND_API_KEY) {
-    throw new Error('生产环境必须配置 RESEND_API_KEY 才能发送验证码邮件');
-  }
+}
+
+// 邮件发送改由管理后台「邮件发送设置」优先（数据库配置），环境变量仅作兜底；
+// 未配置时生产启动不再拒绝，只提示管理员尽快在后台完成配置
+if (raw.NODE_ENV === 'production' && !raw.RESEND_API_KEY) {
+  console.info(
+    '提示：未通过环境变量配置 RESEND_API_KEY，可登录管理后台在「系统设置」的邮件发送设置中配置；未配置前验证码邮件无法实际送达',
+  );
 }
 
 if (raw.RESEND_API_KEY && !raw.MAIL_FROM) {
-  throw new Error('启用 Resend 时必须配置 MAIL_FROM，使用 Resend 中已验证域名的发件地址');
+  console.info('提示：已配置 RESEND_API_KEY 但未配置 MAIL_FROM，建议在管理后台「系统设置」的邮件发送设置中补全发件地址');
 }
 
 const corsOrigins = raw.CORS_ORIGINS
@@ -114,7 +119,7 @@ export const env = {
   cos,
   cosEnabled: Boolean(cos.secretId && cos.secretKey && cos.bucket && cos.region),
   mail,
-  // 未配置 Resend 时，开发/测试使用控制台传输；生产环境已在上方拒绝缺失配置
+  // 环境变量层面的邮件开关：后台「邮件发送设置」优先生效，此项仅作兜底
   mailEnabled: Boolean(mail.apiKey),
   emailCode: {
     secret: `${raw.JWT_SECRET}:email-code`,

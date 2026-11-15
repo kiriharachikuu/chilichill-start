@@ -24,6 +24,13 @@ export interface MailDeliveryResult {
   durationMs: number;
 }
 
+export interface MailTransportConfig {
+  apiKey: string;
+  from: string;
+  fromName: string;
+  replyTo: string | null;
+}
+
 class ResendApiError extends Error {
   constructor(
     readonly status: number,
@@ -42,22 +49,22 @@ function retryAfterMs(value: string | null): number {
   return Number.isFinite(delay) ? Math.max(0, delay) : 0;
 }
 
-function createResendTransport(): MailTransport {
+function createResendTransport(config: MailTransportConfig): MailTransport {
   return {
     name: 'resend',
     async send(message, idempotencyKey = randomUUID()) {
       const response = await fetch('https://api.resend.com/emails', {
         method: 'POST',
         headers: {
-          Authorization: `Bearer ${env.mail.apiKey}`,
+          Authorization: `Bearer ${config.apiKey}`,
           'Content-Type': 'application/json',
           'Idempotency-Key': idempotencyKey,
         },
         signal: AbortSignal.timeout(10_000),
         body: JSON.stringify({
-          from: `${JSON.stringify(env.mail.fromName)} <${env.mail.from}>`,
+          from: `${JSON.stringify(config.fromName)} <${config.from}>`,
           to: [message.to],
-          reply_to: env.mail.replyTo ?? undefined,
+          reply_to: config.replyTo ?? undefined,
           subject: message.subject,
           text: message.text,
           html: message.html,
@@ -88,12 +95,12 @@ function createResendTransport(): MailTransport {
   };
 }
 
-// 未配置 Resend 时的本地开发兜底：完整纯文本内容打到后端日志，不对外暴露 HTML
+// 邮件服务未配置时的兜底：完整纯文本内容打到后端日志，不对外暴露 HTML
 const consoleTransport: MailTransport = {
   name: 'console',
   async send(message) {
     console.info(
-      `[mail:console] 未配置 RESEND_API_KEY，邮件仅输出到日志\nto: ${message.to}\nsubject: ${message.subject}\n\n${message.text}\n`,
+      `[mail:console] 邮件服务未配置（后台邮件设置与环境变量均无 API Key），邮件仅输出到日志\nto: ${message.to}\nsubject: ${message.subject}\n\n${message.text}\n`,
     );
     return {};
   },
@@ -101,12 +108,37 @@ const consoleTransport: MailTransport = {
 
 let activeTransport: MailTransport | null = null;
 
-function getTransport(): MailTransport {
+type MailConfigProvider = () => Promise<MailTransportConfig | null>;
+
+// 默认提供器：从环境变量解析（单元测试与未接数据库场景的兜底）
+const envConfigProvider: MailConfigProvider = async () => {
+  if (!env.mailEnabled || !env.mail.apiKey) {
+    return null;
+  }
+  return {
+    apiKey: env.mail.apiKey,
+    from: env.mail.from,
+    fromName: env.mail.fromName,
+    replyTo: env.mail.replyTo,
+  };
+};
+
+let configProvider: MailConfigProvider = envConfigProvider;
+
+/**
+ * 应用启动时注入基于数据库的配置提供器（后台邮件设置优先、环境变量兜底）。
+ * 传 null 恢复环境变量默认行为。
+ */
+export function setMailConfigProvider(provider: MailConfigProvider | null) {
+  configProvider = provider ?? envConfigProvider;
+}
+
+async function getTransport(): Promise<MailTransport> {
   if (activeTransport) {
     return activeTransport;
   }
-  activeTransport = env.mailEnabled ? createResendTransport() : consoleTransport;
-  return activeTransport;
+  const config = await configProvider();
+  return config ? createResendTransport(config) : consoleTransport;
 }
 
 /**
@@ -178,7 +210,7 @@ function sleep(ms: number) {
  */
 export async function deliverMail(message: MailMessage): Promise<MailDeliveryResult> {
   const startedAt = Date.now();
-  const transport = getTransport();
+  const transport = await getTransport();
   const maxAttempts = Math.max(1, env.mail.maxRetries + 1);
   // 同一封邮件的所有重试使用同一个键，避免请求已受理但响应丢失时重复发信。
   const idempotencyKey = randomUUID();

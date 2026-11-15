@@ -46,6 +46,7 @@ const galleryPayload = () => ({
 
 const groupPayload = (overrides: Record<string, unknown> = {}) => ({
   name: '测试群组',
+  platform: 'QQ',
   groupNumber: '912345678',
   type: 'GENERAL',
   description: '这是一个测试群组简介',

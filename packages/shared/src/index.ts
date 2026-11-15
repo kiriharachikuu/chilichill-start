@@ -254,6 +254,7 @@ export interface MetaResponse {
   tags: { group: Tag[]; sites: Tag[] };
   stats: { groups: number; sites: number; galleryImages: number; pendingSubmissions: number };
   modules: NavModule[];
+  registration: { emailCodeRequired: boolean };
 }
 
 export interface NavModule {
@@ -703,6 +704,46 @@ export const storageSettingsSchema = z
     }
   });
 export type StorageSettingsInput = z.infer<typeof storageSettingsSchema>;
+
+// 邮件发送设置（后台可改，数据库优先、环境变量兜底）
+export interface MailSettings {
+  apiKey: string; // 读取时脱敏：已配置时为 MAIL_SECRET_KEEP
+  from: string;
+  fromName: string;
+  replyTo: string | null;
+}
+
+export const MAIL_SECRET_KEEP = '__KEEP__';
+
+export const mailSettingsSchema = z.object({
+  apiKey: z
+    .string()
+    .trim()
+    .min(1, 'Resend API Key 不能为空')
+    .max(200, 'Resend API Key 过长')
+    .or(z.literal(MAIL_SECRET_KEEP)),
+  from: z.string().trim().email('发件地址必须是纯邮箱地址').max(200, '发件地址过长'),
+  fromName: z.string().trim().min(1, '发件人名称不能为空').max(60, '发件人名称过长'),
+  replyTo: z
+    .string()
+    .trim()
+    .email('回复地址必须是纯邮箱地址')
+    .max(200, '回复地址过长')
+    .optional()
+    .or(z.literal(''))
+    .nullable()
+    .transform((value) => (value ? value : null)),
+});
+export type MailSettingsInput = z.infer<typeof mailSettingsSchema>;
+
+// 注册设置（后台可改）
+export interface RegistrationSettings {
+  emailCodeRequired: boolean;
+}
+
+export const registrationSettingsSchema = z.object({
+  emailCodeRequired: z.boolean({ error: '请选择注册是否需要邮箱验证码' }),
+});
 
 // 后台操作审计日志（用户组调整等敏感操作）
 export interface AdminAuditLog {

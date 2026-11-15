@@ -20,14 +20,27 @@ describe('Resend 环境配置', () => {
     expect(env.mail.from).toBe('no-reply@example.com');
   });
 
-  it('生产环境缺少密钥时拒绝启动', async () => {
+  it('生产环境缺少密钥时不再拒绝启动，邮件兜底开关关闭', async () => {
     vi.stubEnv('RESEND_API_KEY', '');
-    await expect(import('../src/env')).rejects.toThrow('生产环境必须配置 RESEND_API_KEY');
+    vi.spyOn(console, 'info').mockImplementation(() => {});
+    const { env } = await import('../src/env');
+    expect(env.mailEnabled).toBe(false);
   });
 
-  it('启用 Resend 但缺少发件地址时拒绝启动', async () => {
+  it('生产环境缺少密钥时提示在管理后台配置邮件', async () => {
+    vi.stubEnv('RESEND_API_KEY', '');
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    await import('../src/env');
+    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('管理后台'));
+  });
+
+  it('已配置密钥但缺少发件地址时不再拒绝启动，仅输出提示', async () => {
     vi.stubEnv('MAIL_FROM', '');
-    await expect(import('../src/env')).rejects.toThrow('启用 Resend 时必须配置 MAIL_FROM');
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
+    const { env } = await import('../src/env');
+    expect(env.mailEnabled).toBe(true);
+    expect(env.mail.from).toBe('no-reply@spaceport.local');
+    expect(infoSpy).toHaveBeenCalledWith(expect.stringContaining('MAIL_FROM'));
   });
 
   it('拒绝无效发件地址', async () => {

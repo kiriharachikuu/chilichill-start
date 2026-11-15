@@ -4,6 +4,11 @@ import { buildApp } from '../src/app';
 import { env } from '../src/env';
 import { prisma } from '../src/prisma';
 import { consumeRegistrationCode, resetEmailCodeRateLimits } from '../src/services/email-verification';
+import {
+  invalidateRegistrationSettingsCache,
+  REGISTRATION_SETTING_KEY,
+  saveStoredRegistrationSettings,
+} from '../src/services/registration-settings';
 import { setMailTransport, type MailMessage } from '../src/services/mail/mailer';
 import { renderVerificationEmail } from '../src/services/mail/verification-template';
 
@@ -76,6 +81,7 @@ afterAll(async () => {
   await app.close();
   await prisma.emailVerificationCode.deleteMany({ where: { email: { in: TEST_EMAILS } } });
   await prisma.user.deleteMany({ where: { email: { in: TEST_EMAILS } } });
+  await prisma.systemSetting.deleteMany({ where: { key: REGISTRATION_SETTING_KEY } });
 });
 
 beforeEach(async () => {
@@ -84,6 +90,9 @@ beforeEach(async () => {
   resetEmailCodeRateLimits();
   await prisma.emailVerificationCode.deleteMany({ where: { email: { in: TEST_EMAILS } } });
   await prisma.user.deleteMany({ where: { email: { in: TEST_EMAILS } } });
+  // 恢复注册开关默认值（需要验证码），避免开关用例影响其他测试
+  await prisma.systemSetting.deleteMany({ where: { key: REGISTRATION_SETTING_KEY } });
+  invalidateRegistrationSettingsCache();
 });
 
 describe('发送注册验证码', () => {
@@ -261,6 +270,43 @@ describe('注册验证码校验', () => {
     const body = response.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe('VALIDATION_ERROR');
     expect(body.error.message).toContain('6 位数字验证码');
+  });
+});
+
+describe('注册邮箱验证码开关（后台可关）', () => {
+  it('关闭开关后注册无需验证码即可成功', async () => {
+    await saveStoredRegistrationSettings({ emailCodeRequired: false });
+
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { email: TEST_EMAILS[0], password: 'Passw0rd!', nickname: '测试乘客' },
+    });
+    expect(response.statusCode).toBe(201);
+    expect(response.json<{ user: { email: string } }>().user.email).toBe(TEST_EMAILS[0]);
+    expect(mails).toHaveLength(0);
+  });
+
+  it('关闭开关后发送验证码接口直接拒绝且不投递邮件', async () => {
+    await saveStoredRegistrationSettings({ emailCodeRequired: false });
+
+    const response = await sendCode(TEST_EMAILS[1]);
+    expect(response.statusCode).toBe(400);
+    expect(response.json<{ error: { code: string } }>().error.code).toBe('CODE_DISABLED');
+    expect(mails).toHaveLength(0);
+  });
+
+  it('meta 接口向前端下发最新开关状态', async () => {
+    const before = await app.inject({ method: 'GET', url: '/api/meta' });
+    expect(
+      before.json<{ registration: { emailCodeRequired: boolean } }>().registration.emailCodeRequired,
+    ).toBe(true);
+
+    await saveStoredRegistrationSettings({ emailCodeRequired: false });
+    const after = await app.inject({ method: 'GET', url: '/api/meta' });
+    expect(
+      after.json<{ registration: { emailCodeRequired: boolean } }>().registration.emailCodeRequired,
+    ).toBe(false);
   });
 });
 

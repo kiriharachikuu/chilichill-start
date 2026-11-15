@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Cloud, CloudCog, HardDrive, Loader2, Save, ShieldCheck } from 'lucide-react';
+import { Cloud, CloudCog, HardDrive, Loader2, Mail, Save, ShieldCheck, UserRoundPlus } from 'lucide-react';
 import {
+  MAIL_SECRET_KEEP,
   STORAGE_MODES,
   STORAGE_MODE_LABELS,
   STORAGE_SECRET_KEEP,
+  type MailSettings,
+  type RegistrationSettings,
   type StorageMode,
   type StorageSettings,
 } from '@spaceport/shared';
@@ -166,7 +169,7 @@ export default function AdminSettingsPage() {
       <SectionHeading
         eyebrow="Settings"
         title="系统设置"
-        description="配置上传图片的存储方式；切换存储模式后新上传的图片立即使用新配置"
+        description="配置上传图片的存储方式、注册流程与邮件发送参数；保存后即时生效"
         action={
           <Button
             variant="ghost"
@@ -189,6 +192,10 @@ export default function AdminSettingsPage() {
         </Card>
       ) : (
         <Card className="space-y-6 p-5 sm:p-6">
+          <p className="flex items-center gap-2 text-sm font-extrabold text-ink">
+            <HardDrive className="h-4 w-4 text-amber" />
+            存储设置
+          </p>
           <Field label="存储模式" hint="切换后立即生效，已有图片链接不受影响">
             <div className="grid gap-3 sm:grid-cols-3">
               {STORAGE_MODES.map((value) => {
@@ -337,6 +344,278 @@ export default function AdminSettingsPage() {
           </div>
         </Card>
       )}
+
+      {/* 注册与邮件设置卡片独立加载，与上方存储设置互不影响 */}
+      <RegistrationSettingsCard />
+      <MailSettingsCard />
     </div>
+  );
+}
+
+// 注册设置：注册邮箱验证码开关
+function RegistrationSettingsCard() {
+  const toast = useToast();
+  const [emailCodeRequired, setEmailCodeRequired] = useState(true);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    setFailed(false);
+    try {
+      const res = await api.get<{ item: RegistrationSettings }>('/api/admin/settings/registration');
+      setEmailCodeRequired(res.item.emailCodeRequired);
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchSettings();
+  }, [fetchSettings]);
+
+  const save = useCallback(async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await api.put<{ item: RegistrationSettings }>('/api/admin/settings/registration', {
+        emailCodeRequired,
+      });
+      toast.success('注册设置已保存并生效');
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : '保存失败，请稍后再试');
+    } finally {
+      setSaving(false);
+    }
+  }, [saving, emailCodeRequired, toast]);
+
+  if (loading) {
+    return (
+      <Card className="flex items-center justify-center px-4 py-10 text-sm text-muted">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 注册设置加载中…
+      </Card>
+    );
+  }
+  if (failed) {
+    return (
+      <Card className="flex items-center justify-center gap-3 px-4 py-10 text-sm text-muted">
+        注册设置加载失败
+        <Button variant="ghost" size="sm" onClick={() => void fetchSettings()}>
+          重试
+        </Button>
+      </Card>
+    );
+  }
+  return (
+    <Card className="space-y-6 p-5 sm:p-6">
+      <p className="flex items-center gap-2 text-sm font-extrabold text-ink">
+        <UserRoundPlus className="h-4 w-4 text-amber" />
+        注册设置
+      </p>
+      <Field label="注册邮箱验证码" hint="保存后立即生效，注册页会在下次打开时读取最新开关">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {([true, false] as const).map((value) => {
+            const active = emailCodeRequired === value;
+            return (
+              <button
+                key={String(value)}
+                type="button"
+                onClick={() => setEmailCodeRequired(value)}
+                className={`flex flex-col items-start gap-2 rounded-xl border px-4 py-3.5 text-left transition ${
+                  active ? 'border-amber/70 bg-amber/10' : 'border-white/10 bg-white/[0.04] hover:border-white/25'
+                }`}
+              >
+                <span className="flex w-full items-center gap-2 text-sm font-extrabold text-ink">
+                  <ShieldCheck className={`h-4 w-4 ${active ? 'text-amber' : 'text-muted'}`} />
+                  {value ? '需要验证码' : '无需验证码'}
+                </span>
+                <span className="text-[11px] leading-snug text-muted">
+                  {value
+                    ? '注册前先向邮箱发送 6 位验证码，防止恶意批量注册'
+                    : '注册仅凭邮箱与密码，适合未配置邮件服务的部署'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+      <div className="flex items-center justify-end border-t border-white/10 pt-4">
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={saving}
+          icon={saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          onClick={() => void save()}
+        >
+          {saving ? '保存中…' : '保存设置'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+interface MailForm {
+  apiKey: string;
+  from: string;
+  fromName: string;
+  replyTo: string;
+}
+
+const EMPTY_MAIL: MailForm = { apiKey: '', from: '', fromName: '', replyTo: '' };
+const EMAIL_PATTERN = /^\S+@\S+\.\S+$/;
+
+// 邮件发送设置：数据库优先、环境变量兜底；API Key 保存后即时生效
+function MailSettingsCard() {
+  const toast = useToast();
+  const [form, setForm] = useState<MailForm>(EMPTY_MAIL);
+  const [hasApiKey, setHasApiKey] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    setFailed(false);
+    try {
+      const res = await api.get<{ item: MailSettings }>('/api/admin/settings/mail');
+      const item = res.item;
+      setHasApiKey(item.apiKey === MAIL_SECRET_KEEP);
+      setForm({
+        apiKey: item.apiKey === MAIL_SECRET_KEEP ? '' : item.apiKey,
+        from: item.from,
+        fromName: item.fromName,
+        replyTo: item.replyTo ?? '',
+      });
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchSettings();
+  }, [fetchSettings]);
+
+  const validate = useCallback((): boolean => {
+    const next: Record<string, string> = {};
+    if (!form.apiKey.trim() && !hasApiKey) next['apiKey'] = 'Resend API Key 不能为空';
+    if (!form.from.trim()) next['from'] = '发件地址不能为空';
+    else if (!EMAIL_PATTERN.test(form.from.trim())) next['from'] = '发件地址必须是纯邮箱地址';
+    if (!form.fromName.trim()) next['fromName'] = '发件人名称不能为空';
+    if (form.replyTo.trim() && !EMAIL_PATTERN.test(form.replyTo.trim())) {
+      next['replyTo'] = '回复地址必须是纯邮箱地址';
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }, [form, hasApiKey]);
+
+  const save = useCallback(async () => {
+    if (saving) return;
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      await api.put<{ item: MailSettings }>('/api/admin/settings/mail', {
+        // API Key 留空且已配置过时传哨兵值，表示保留现有密钥
+        apiKey: form.apiKey.trim() ? form.apiKey.trim() : hasApiKey ? MAIL_SECRET_KEEP : '',
+        from: form.from.trim(),
+        fromName: form.fromName.trim(),
+        replyTo: form.replyTo.trim() || null,
+      });
+      toast.success('邮件设置已保存并生效');
+      void fetchSettings();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : '保存失败，请稍后再试');
+    } finally {
+      setSaving(false);
+    }
+  }, [saving, validate, form, hasApiKey, toast, fetchSettings]);
+
+  const errorOf = (key: string) => errors[key];
+
+  if (loading) {
+    return (
+      <Card className="flex items-center justify-center px-4 py-10 text-sm text-muted">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 邮件设置加载中…
+      </Card>
+    );
+  }
+  if (failed) {
+    return (
+      <Card className="flex items-center justify-center gap-3 px-4 py-10 text-sm text-muted">
+        邮件设置加载失败
+        <Button variant="ghost" size="sm" onClick={() => void fetchSettings()}>
+          重试
+        </Button>
+      </Card>
+    );
+  }
+  return (
+    <Card className="space-y-6 p-5 sm:p-6">
+      <p className="flex items-center gap-2 text-sm font-extrabold text-ink">
+        <Mail className="h-4 w-4 text-amber" />
+        邮件发送设置
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Resend API Key"
+          required
+          error={errorOf('apiKey')}
+          hint={hasApiKey ? undefined : '在 resend.com 的 API Keys 页面创建'}
+        >
+          <Input
+            type="password"
+            value={form.apiKey}
+            onChange={(event) => setForm({ ...form, apiKey: event.target.value })}
+            placeholder={hasApiKey ? SECRET_PLACEHOLDER : 're_xxxxxxxx'}
+          />
+        </Field>
+        <Field
+          label="发件地址"
+          required
+          error={errorOf('from')}
+          hint="必须是 Resend 已验证域名下的纯邮箱地址，不含显示名"
+        >
+          <Input
+            value={form.from}
+            onChange={(event) => setForm({ ...form, from: event.target.value })}
+            placeholder="noreply@example.com"
+          />
+        </Field>
+        <Field label="发件人名称" required error={errorOf('fromName')}>
+          <Input
+            value={form.fromName}
+            maxLength={60}
+            onChange={(event) => setForm({ ...form, fromName: event.target.value })}
+            placeholder="例如 空间站小助手"
+          />
+        </Field>
+        <Field label="回复地址" error={errorOf('replyTo')} hint="可选，用户直接回复邮件时接收地址">
+          <Input
+            value={form.replyTo}
+            onChange={(event) => setForm({ ...form, replyTo: event.target.value })}
+            placeholder="support@example.com"
+          />
+        </Field>
+      </div>
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-muted">
+        邮件设置保存后立即生效，优先于 .env 中的 RESEND_* 环境变量；后台未配置时仍会回退到环境变量。用于注册验证码、密码重置等系统邮件发送。
+      </div>
+      <div className="flex items-center justify-end border-t border-white/10 pt-4">
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={saving}
+          icon={saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          onClick={() => void save()}
+        >
+          {saving ? '保存中…' : '保存设置'}
+        </Button>
+      </div>
+    </Card>
   );
 }

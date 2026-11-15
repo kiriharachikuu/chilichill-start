@@ -7,6 +7,7 @@ export const EMPTY_META: MetaResponse = {
   tags: { group: [], sites: [] },
   stats: { groups: 0, sites: 0, galleryImages: 0, pendingSubmissions: 0 },
   modules: [],
+  registration: { emailCodeRequired: true },
 };
 
 function normalizeMeta(data: Partial<MetaResponse> | null | undefined): MetaResponse {
@@ -20,6 +21,7 @@ function normalizeMeta(data: Partial<MetaResponse> | null | undefined): MetaResp
     },
     stats: { ...EMPTY_META.stats, ...data.stats },
     modules: data.modules ?? [],
+    registration: data.registration ?? EMPTY_META.registration,
   };
 }
 

@@ -1,11 +1,12 @@
 import { buildApp } from './app';
 import { env } from './env';
+import { isMailConfigured } from './services/mail/settings';
 
 async function main() {
   const app = await buildApp();
 
-  if (!env.mailEnabled) {
-    app.log.warn('未配置 RESEND_API_KEY：验证码仅输出到后端日志，并随接口返回 devCode');
+  if (!(await isMailConfigured())) {
+    app.log.warn('邮件服务未配置（后台邮件设置与环境变量均无 API Key）：验证码仅输出到后端日志，可在管理后台「系统设置」的邮件发送设置中配置');
   }
 
   try {

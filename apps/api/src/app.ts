@@ -30,11 +30,27 @@ import { submissionsRoutes } from './routes/submissions';
 import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/uploads';
 import { userRoutes } from './routes/users';
+import { setMailConfigProvider } from './services/mail/mailer';
+import { getStoredMailSettings } from './services/mail/settings';
 
 const publicDir = fileURLToPath(new URL('../public', import.meta.url));
 const uploadsDir = join(publicDir, 'uploads');
 
 export async function buildApp() {
+  // 邮件发送配置：后台「邮件发送设置」（数据库）优先，环境变量兜底
+  setMailConfigProvider(async () => {
+    const settings = await getStoredMailSettings();
+    if (!settings.apiKey) {
+      return null;
+    }
+    return {
+      apiKey: settings.apiKey,
+      from: settings.from,
+      fromName: settings.fromName,
+      replyTo: settings.replyTo,
+    };
+  });
+
   if (!existsSync(uploadsDir)) {
     mkdirSync(uploadsDir, { recursive: true });
   }

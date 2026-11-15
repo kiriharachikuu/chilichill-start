@@ -4,6 +4,7 @@ import { env } from '../env';
 import { HttpError } from '../lib/errors';
 import { prisma } from '../prisma';
 import { deliverMail, deliverMailInBackground } from './mail/mailer';
+import { isMailConfigured } from './mail/settings';
 import { renderVerificationEmail } from './mail/verification-template';
 
 const HOUR_MS = 60 * 60 * 1000;
@@ -12,7 +13,7 @@ const CODE_LENGTH = 6;
 export interface SendEmailCodeResult {
   expiresInSeconds: number;
   retryAfterSeconds: number;
-  /** 仅在开发/测试且未配置 Resend 时返回，方便不接邮件服务也能联调 */
+  /** 仅在开发/测试且未配置邮件服务（后台与环境变量均无 API Key）时返回，方便不接邮件服务也能联调 */
   devCode?: string;
 }
 
@@ -81,6 +82,11 @@ export async function sendRegistrationCode(
   log: FastifyBaseLogger,
 ): Promise<SendEmailCodeResult> {
   const normalized = email.toLowerCase();
+
+  // 生产环境邮件未配置（后台邮件设置与环境变量均无 API Key）时直接拒绝，避免验证码静默落日志
+  if (env.isProd && !(await isMailConfigured())) {
+    throw new HttpError(502, 'MAIL_SEND_FAILED', '邮件服务未配置，请联系管理员在后台完成邮件设置');
+  }
 
   const existingUser = await prisma.user.findUnique({ where: { email: normalized }, select: { id: true } });
   if (existingUser) {
@@ -192,7 +198,7 @@ export async function sendRegistrationCode(
   return {
     expiresInSeconds: env.emailCode.ttlMinutes * 60,
     retryAfterSeconds: env.emailCode.cooldownSeconds,
-    devCode: env.isDev && !env.mailEnabled ? code : undefined,
+    devCode: env.isDev && !(await isMailConfigured()) ? code : undefined,
   };
 }
 
