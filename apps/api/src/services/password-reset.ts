@@ -14,7 +14,7 @@ const CODE_LENGTH = 6;
 export interface SendPasswordResetResult {
   expiresInSeconds: number;
   retryAfterSeconds: number;
-  /** 仅在本地开发且未配置 SMTP 时返回，方便不接邮件服务也能联调 */
+  /** 仅在开发/测试且未配置 Resend 时返回，方便不接邮件服务也能联调 */
   devCode?: string;
 }
 
@@ -48,7 +48,7 @@ function generateCode(): string {
  * 发送密码重置验证码：IP 限流 + 同邮箱冷却与小时配额后落库并投递邮件。
  * 邮箱不存在时同样返回成功（响应结构与存在时一致），但不投递邮件，
  * 避免通过该接口探测站内注册邮箱（注册验证码接口本就会返回 409，双重防护）。
- * 验证码只存 SHA-256 摘要；发送失败抛 502，记录保留以便冷却限制继续生效。
+ * 验证码只存 SHA-256 摘要；后台发送失败记日志，测试环境同步返回 502；均保留冷却记录。
  */
 export async function sendPasswordResetCode(
   email: string,

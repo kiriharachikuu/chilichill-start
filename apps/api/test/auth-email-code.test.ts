@@ -8,7 +8,7 @@ import { setMailTransport, type MailMessage } from '../src/services/mail/mailer'
 import { renderVerificationEmail } from '../src/services/mail/verification-template';
 
 // 注册邮箱验证码全链路集成测试：签发 → 邮件渲染 → 冷却/配额 → 校验 → 注册
-// 邮件用内存传输捕获，避免依赖真实 SMTP；所有请求走 fastify.inject。
+// 邮件用内存传输捕获，避免依赖真实 Resend；所有请求走 fastify.inject。
 
 const TEST_EMAILS = [
   'code-a@test.dev',
@@ -60,7 +60,7 @@ beforeAll(async () => {
     async send(message) {
       if (failuresLeft > 0) {
         failuresLeft -= 1;
-        throw new Error('smtp connection refused');
+        throw new Error('Resend connection refused');
       }
       mails.push(message);
       return { messageId: `test-${mails.length}` };
@@ -94,7 +94,7 @@ describe('发送注册验证码', () => {
     const body = response.json<{ expiresInSeconds: number; retryAfterSeconds: number; devCode?: string }>();
     expect(body.expiresInSeconds).toBe(env.emailCode.ttlMinutes * 60);
     expect(body.retryAfterSeconds).toBe(env.emailCode.cooldownSeconds);
-    // 测试环境未配置 SMTP，devCode 会随响应返回，方便前端联调
+    // 测试环境未配置 Resend，devCode 会随响应返回，方便前端联调
     expect(body.devCode).toMatch(/^\d{6}$/);
 
     expect(mails).toHaveLength(1);

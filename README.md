@@ -64,12 +64,13 @@ npm run dev
 ## 测试
 
 ```powershell
-npm test --workspace=@spaceport/api   # API 集成测试（75 用例）
+npm test --workspace=@spaceport/api   # API 测试（94 用例）
 npm test --workspace=@spaceport/web   # Web 组件测试（26 用例）
 ```
 
 - API 测试使用独立 SQLite 测试库（临时目录，`global-setup` 自动 `db push` 重建），不触碰 `dev.db`；鉴权用 `app.jwt.sign` 直接签发 cookie，覆盖点赞/评论/投稿/审核/登录限流/密码重置等核心链路。
 - API 测试串行执行（`fileParallelism: false`），避免 SQLite 文件库多进程写锁冲突。
+- Resend 传输测试模拟 HTTP 响应，覆盖请求内容、重试幂等、限流等待、超时和永久错误；配置测试覆盖生产环境必填项，不调用真实发信服务。
 - Web 测试覆盖 `apiFetch` 封装（错误结构、401 广播）、`EmailCodeField`（倒计时/结构化限流）、`ProtectedAdminRoute`（路由守卫）、`LoginModal`（登录/注册/找回密码流程）。
 
 ## 常用脚本
@@ -103,11 +104,9 @@ npm test --workspace=@spaceport/web   # Web 组件测试（26 用例）
 | `COS_SECRET_ID` / `COS_SECRET_KEY` / `COS_BUCKET` / `COS_REGION` | 空 | 腾讯云 COS 密钥，四项齐全自动启用对象存储上传 |
 | `COS_KEY_PREFIX` | `spaceport` | 上传对象的目录前缀。**与其他项目共用存储桶时必配**：对象统一落在 `<前缀>/uploads/...`，与其他项目的文件隔离；删除清理按此前缀识别归属 |
 | `COS_BASE_URL` | 空 | 可选自定义访问域名；留空按 `https://<bucket>.cos.<region>.myqcloud.com/<key>` 拼接 |
-| `SMTP_HOST` | 空 | SMTP 服务器，留空时验证码只打印到后端日志（开发环境接口返回 `devCode`） |
-| `SMTP_PORT` | `465` | 465 走隐式 TLS，587/25 走 STARTTLS |
-| `SMTP_SECURE` | 按端口推断 | 可显式设 `true`/`false` 覆盖 |
-| `SMTP_USER` / `SMTP_PASS` | 空 | SMTP 账号与授权码（QQ/163 需授权码而非登录密码） |
-| `MAIL_FROM` / `MAIL_FROM_NAME` / `MAIL_REPLY_TO` | — | 发件地址 / 显示名 / 回复地址 |
+| `RESEND_API_KEY` | 空 | Resend API 密钥，仅后端读取；生产必填，开发/测试留空时仅打印邮件并返回 `devCode` |
+| `MAIL_FROM` | 空（控制台模式显示本地占位地址） | 启用 Resend 时必填，填写已验证域名的纯邮箱地址，如 `no-reply@example.com` |
+| `MAIL_FROM_NAME` / `MAIL_REPLY_TO` | `厚嘴唇空间站` / 空 | 发件显示名 / 可选回复地址 |
 | `MAIL_MAX_RETRIES` / `MAIL_RETRY_DELAY_MS` | `2` / `800` | 发送失败重试次数与退避基数 |
 | `EMAIL_CODE_TTL_MINUTES` | `10` | 验证码有效期 |
 | `EMAIL_CODE_COOLDOWN_SECONDS` | `60` | 同邮箱重发冷却 |
@@ -115,7 +114,11 @@ npm test --workspace=@spaceport/web   # Web 组件测试（26 用例）
 | `EMAIL_CODE_HOURLY_LIMIT` | `5` | 同邮箱每小时发送上限 |
 | `EMAIL_CODE_IP_HOURLY_LIMIT` | `20` | 同 IP 每小时发送上限 |
 
-验证码只以 SHA-256 摘要落库；生产请为发信域名补齐 SPF、DKIM、DMARC 记录。
+验证码只以 SHA-256 摘要落库。邮件通过 [Resend Email API](https://resend.com/docs/api-reference/emails/send-email) 发送，注册和找回密码共用发信服务。
+
+接入步骤：在 [Resend Domains](https://resend.com/domains) 添加发信域名，按控制台要求配置 DNS 并完成验证；在 [API Keys](https://resend.com/api-keys) 创建拥有该域名发送权限的密钥，将 `RESEND_API_KEY` 和 `MAIL_FROM` 写入 `apps/api/.env` 后重启后端。`MAIL_FROM` 的域名必须已验证，`MAIL_FROM_NAME` 单独配置显示名。旧 `SMTP_*` 配置已不再使用。
+
+发信请求有 10 秒超时，同一封邮件重试时复用幂等键；网络错误、HTTP 5xx 和临时限流按退避策略重试，并遵守 `Retry-After`。密钥、域名或参数错误直接失败。生产环境缺少 Resend 密钥或发件地址会拒绝启动。开发/生产仍采用后台投递：验证码接口成功表示已触发发送，实际 API 结果查看后端 `email_code` / `password_reset` 日志；最终送达情况查看 Resend 控制台。
 
 ## 群分类规则
 
@@ -181,11 +184,10 @@ API_PORT=3001
 JWT_SECRET=<openssl rand -hex 32 生成>
 DATABASE_URL=file:/www/chilichill-data/prod.db
 TRUST_PROXY=true
-SMTP_HOST=smtp.xxx.com
-SMTP_PORT=465
-SMTP_USER=no-reply@xxx.com
-SMTP_PASS=<授权码>
+RESEND_API_KEY=<Resend API 密钥>
+# 发件域名必须已在 Resend 完成验证
 MAIL_FROM=no-reply@xxx.com
+MAIL_FROM_NAME=厚嘴唇空间站
 # 可选：上传走 COS（推荐，不依赖单机磁盘）
 # COS_SECRET_ID= COS_SECRET_KEY= COS_BUCKET= COS_REGION= COS_BASE_URL=
 ```

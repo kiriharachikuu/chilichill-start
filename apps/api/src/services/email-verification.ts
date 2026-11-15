@@ -12,7 +12,7 @@ const CODE_LENGTH = 6;
 export interface SendEmailCodeResult {
   expiresInSeconds: number;
   retryAfterSeconds: number;
-  /** 仅在本地开发且未配置 SMTP 时返回，方便不接邮件服务也能联调 */
+  /** 仅在开发/测试且未配置 Resend 时返回，方便不接邮件服务也能联调 */
   devCode?: string;
 }
 
@@ -73,7 +73,7 @@ function enforceIpLimit(ip: string | null | undefined) {
 
 /**
  * 发送注册验证码：校验邮箱占用、IP 限流、同邮箱冷却与小时配额后落库并投递邮件。
- * 验证码只存 SHA-256 摘要；发送失败会抛出 502，记录保留以便冷却限制继续生效。
+ * 验证码只存 SHA-256 摘要；后台发送失败记日志，测试环境同步返回 502；均保留冷却记录。
  */
 export async function sendRegistrationCode(
   email: string,
@@ -140,7 +140,7 @@ export async function sendRegistrationCode(
   });
 
   // 测试环境同步等待投递结果以便断言 502 失败路径；
-  // 生产/开发环境后台投递，避免 SMTP 超时重试（最长约 1 分钟）阻塞接口响应
+  // 生产/开发环境后台投递，避免 Resend 请求超时与重试阻塞接口响应
   if (env.nodeEnv === 'test') {
     const delivery = await deliverMail({
       to: normalized,

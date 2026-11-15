@@ -9,7 +9,7 @@ import { setMailTransport, type MailMessage } from '../src/services/mail/mailer'
 import { renderPasswordResetEmail } from '../src/services/mail/password-reset-template';
 
 // 密码重置全链路集成测试：发码 → 冷却/防探测 → 校验 → 改密 → 新旧密码登录
-// 邮件用内存传输捕获，避免依赖真实 SMTP；所有请求走 fastify.inject。
+// 邮件用内存传输捕获，避免依赖真实 Resend；所有请求走 fastify.inject。
 
 const TEST_EMAILS = [
   'reset-a@test.dev',
@@ -77,7 +77,7 @@ beforeAll(async () => {
     async send(message) {
       if (failuresLeft > 0) {
         failuresLeft -= 1;
-        throw new Error('smtp connection refused');
+        throw new Error('Resend connection refused');
       }
       mails.push(message);
       return { messageId: `test-${mails.length}` };

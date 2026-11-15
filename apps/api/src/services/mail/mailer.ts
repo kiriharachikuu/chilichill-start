@@ -1,4 +1,4 @@
-import nodemailer from 'nodemailer';
+import { randomUUID } from 'node:crypto';
 import type { FastifyBaseLogger } from 'fastify';
 import { env } from '../../env';
 
@@ -12,7 +12,7 @@ export interface MailMessage {
 
 export interface MailTransport {
   name: string;
-  send(message: MailMessage): Promise<{ messageId?: string }>;
+  send(message: MailMessage, idempotencyKey?: string): Promise<{ messageId?: string }>;
 }
 
 export interface MailDeliveryResult {
@@ -24,47 +24,76 @@ export interface MailDeliveryResult {
   durationMs: number;
 }
 
-function createSmtpTransport(): MailTransport {
-  const transporter = nodemailer.createTransport({
-    host: env.mail.host ?? undefined,
-    port: env.mail.port,
-    secure: env.mail.secure,
-    auth: env.mail.user ? { user: env.mail.user, pass: env.mail.pass ?? '' } : undefined,
-    pool: true,
-    maxConnections: 3,
-    connectionTimeout: 10_000,
-    greetingTimeout: 10_000,
-    socketTimeout: 20_000,
-  });
+class ResendApiError extends Error {
+  constructor(
+    readonly status: number,
+    readonly errorName: string,
+    message: string,
+    readonly retryAfterMs: number,
+  ) {
+    super(`Resend ${status} ${errorName}: ${message}`);
+  }
+}
 
+function retryAfterMs(value: string | null): number {
+  if (!value) return 0;
+  const seconds = Number(value);
+  const delay = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(value) - Date.now();
+  return Number.isFinite(delay) ? Math.max(0, delay) : 0;
+}
+
+function createResendTransport(): MailTransport {
   return {
-    name: 'smtp',
-    async send(message) {
-      const info = await transporter.sendMail({
-        from: { name: env.mail.fromName, address: env.mail.from },
-        to: message.to,
-        replyTo: env.mail.replyTo ?? undefined,
-        subject: message.subject,
-        text: message.text,
-        html: message.html,
+    name: 'resend',
+    async send(message, idempotencyKey = randomUUID()) {
+      const response = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
         headers: {
-          // 声明为系统自动生成的事务邮件，降低被判为营销/垃圾邮件的概率
-          'Auto-Submitted': 'auto-generated',
-          'X-Auto-Response-Suppress': 'All',
-          ...message.headers,
+          Authorization: `Bearer ${env.mail.apiKey}`,
+          'Content-Type': 'application/json',
+          'Idempotency-Key': idempotencyKey,
         },
+        signal: AbortSignal.timeout(10_000),
+        body: JSON.stringify({
+          from: `${JSON.stringify(env.mail.fromName)} <${env.mail.from}>`,
+          to: [message.to],
+          reply_to: env.mail.replyTo ?? undefined,
+          subject: message.subject,
+          text: message.text,
+          html: message.html,
+          headers: {
+            'Auto-Submitted': 'auto-generated',
+            'X-Auto-Response-Suppress': 'All',
+            ...message.headers,
+          },
+        }),
       });
-      return { messageId: info.messageId };
+
+      // 网关错误可能返回非 JSON；仍按 HTTP 状态判定是否重试。
+      const body: unknown = await response.json().catch(() => null);
+      const data = body && typeof body === 'object' ? body as Record<string, unknown> : {};
+      if (!response.ok) {
+        throw new ResendApiError(
+          response.status,
+          typeof data.name === 'string' ? data.name : 'api_error',
+          typeof data.message === 'string' ? data.message : response.statusText,
+          retryAfterMs(response.headers.get('retry-after')),
+        );
+      }
+      if (typeof data.id !== 'string' || !data.id) {
+        throw new Error('Resend 响应缺少邮件 ID');
+      }
+      return { messageId: data.id };
     },
   };
 }
 
-// 未配置 SMTP 时的本地开发兜底：完整纯文本内容打到后端日志，不对外暴露 HTML
+// 未配置 Resend 时的本地开发兜底：完整纯文本内容打到后端日志，不对外暴露 HTML
 const consoleTransport: MailTransport = {
   name: 'console',
   async send(message) {
     console.info(
-      `[mail:console] 未配置 SMTP，邮件仅输出到日志\nto: ${message.to}\nsubject: ${message.subject}\n\n${message.text}\n`,
+      `[mail:console] 未配置 RESEND_API_KEY，邮件仅输出到日志\nto: ${message.to}\nsubject: ${message.subject}\n\n${message.text}\n`,
     );
     return {};
   },
@@ -76,13 +105,13 @@ function getTransport(): MailTransport {
   if (activeTransport) {
     return activeTransport;
   }
-  activeTransport = env.mailEnabled ? createSmtpTransport() : consoleTransport;
+  activeTransport = env.mailEnabled ? createResendTransport() : consoleTransport;
   return activeTransport;
 }
 
 /**
- * 后台投递邮件：立即返回，投递结果仅写日志，避免 SMTP 连接超时与指数退避重试
- * （最长可达约 1 分钟）阻塞接口响应。仅在非 test 环境使用；测试环境需同步
+ * 后台投递邮件：立即返回，投递结果仅写日志，避免 HTTP 超时与指数退避重试
+ * 阻塞接口响应。仅在非 test 环境使用；测试环境需同步
  * 等待 deliverMail 的结果以便断言失败路径。
  */
 export function deliverMailInBackground(
@@ -119,12 +148,17 @@ export function setMailTransport(transport: MailTransport | null) {
 }
 
 function isPermanentFailure(error: unknown): boolean {
-  if (typeof error !== 'object' || error === null) {
+  if (!(error instanceof ResendApiError)) {
     return false;
   }
-  const code = (error as { responseCode?: number }).responseCode;
-  // 5xx 通常是收件人不存在、被拒等不可恢复错误，重试没有意义
-  return typeof code === 'number' && code >= 500 && code < 600;
+  if (['daily_quota_exceeded', 'monthly_quota_exceeded'].includes(error.errorName)) {
+    return true;
+  }
+  // HTTP 5xx、超时、限流与并发幂等请求可重试；密钥/域名/参数错误直接失败。
+  if ([408, 429].includes(error.status) || error.errorName === 'concurrent_idempotent_requests') {
+    return false;
+  }
+  return error.status >= 400 && error.status < 500;
 }
 
 function errorMessageOf(error: unknown): string {
@@ -146,13 +180,15 @@ export async function deliverMail(message: MailMessage): Promise<MailDeliveryRes
   const startedAt = Date.now();
   const transport = getTransport();
   const maxAttempts = Math.max(1, env.mail.maxRetries + 1);
+  // 同一封邮件的所有重试使用同一个键，避免请求已受理但响应丢失时重复发信。
+  const idempotencyKey = randomUUID();
   let lastError = '未知错误';
   let attempts = 0;
 
   for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
     attempts = attempt;
     try {
-      const { messageId } = await transport.send(message);
+      const { messageId } = await transport.send(message, idempotencyKey);
       return {
         ok: true,
         attempts,
@@ -166,7 +202,8 @@ export async function deliverMail(message: MailMessage): Promise<MailDeliveryRes
         break;
       }
       // 第 1 次失败后等待 base，第 2 次等待 2*base，避免邮件服务抖动时立刻打爆
-      await sleep(env.mail.retryDelayMs * 2 ** (attempt - 1));
+      const providerDelay = error instanceof ResendApiError ? error.retryAfterMs : 0;
+      await sleep(Math.max(providerDelay, env.mail.retryDelayMs * 2 ** (attempt - 1)));
     }
   }
 

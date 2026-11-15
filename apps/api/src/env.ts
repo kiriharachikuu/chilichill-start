@@ -38,13 +38,9 @@ const envSchema = z.object({
   COS_BASE_URL: optionalString,
   // 共享存储桶隔离：上传对象统一落在该目录前缀下（如 spaceport/uploads/2026/11/...），默认 spaceport
   COS_KEY_PREFIX: optionalString,
-  // SMTP：填写 SMTP_HOST 即启用真实发信，否则验证码只打印到控制台（本地开发）
-  SMTP_HOST: optionalString,
-  SMTP_PORT: z.coerce.number().int().positive().max(65535).default(465),
-  SMTP_SECURE: optionalBoolean,
-  SMTP_USER: optionalString,
-  SMTP_PASS: optionalSecret,
-  MAIL_FROM: optionalString,
+  // Resend：密钥仅在后端读取；未配置时仅允许开发/测试使用控制台传输
+  RESEND_API_KEY: optionalSecret,
+  MAIL_FROM: optionalString.pipe(z.string().email('MAIL_FROM 必须是纯邮箱地址').optional()),
   MAIL_FROM_NAME: z.string().trim().min(1).default('厚嘴唇空间站'),
   MAIL_REPLY_TO: optionalString,
   MAIL_MAX_RETRIES: z.coerce.number().int().min(0).max(5).default(2),
@@ -73,6 +69,13 @@ if (raw.NODE_ENV === 'production') {
   if (raw.JWT_SECRET.length < 32) {
     throw new Error('生产环境 JWT_SECRET 长度必须至少 32 位');
   }
+  if (!raw.RESEND_API_KEY) {
+    throw new Error('生产环境必须配置 RESEND_API_KEY 才能发送验证码邮件');
+  }
+}
+
+if (raw.RESEND_API_KEY && !raw.MAIL_FROM) {
+  throw new Error('启用 Resend 时必须配置 MAIL_FROM，使用 Resend 中已验证域名的发件地址');
 }
 
 const corsOrigins = raw.CORS_ORIGINS
@@ -90,12 +93,7 @@ const cos = {
 };
 
 const mail = {
-  host: raw.SMTP_HOST ?? null,
-  port: raw.SMTP_PORT,
-  // 465 端口默认隐式 TLS；587/25 走 STARTTLS，可用 SMTP_SECURE 显式覆盖
-  secure: raw.SMTP_SECURE ?? raw.SMTP_PORT === 465,
-  user: raw.SMTP_USER ?? null,
-  pass: raw.SMTP_PASS ?? null,
+  apiKey: raw.RESEND_API_KEY ?? null,
   from: raw.MAIL_FROM ?? 'no-reply@spaceport.local',
   fromName: raw.MAIL_FROM_NAME,
   replyTo: raw.MAIL_REPLY_TO ?? null,
@@ -116,8 +114,8 @@ export const env = {
   cos,
   cosEnabled: Boolean(cos.secretId && cos.secretKey && cos.bucket && cos.region),
   mail,
-  // 未配置 SMTP_HOST 时使用控制台传输（验证码打印到后端日志），便于本地联调
-  mailEnabled: Boolean(mail.host),
+  // 未配置 Resend 时，开发/测试使用控制台传输；生产环境已在上方拒绝缺失配置
+  mailEnabled: Boolean(mail.apiKey),
   emailCode: {
     secret: `${raw.JWT_SECRET}:email-code`,
     ttlMinutes: raw.EMAIL_CODE_TTL_MINUTES,

@@ -5,10 +5,7 @@ async function main() {
   const app = await buildApp();
 
   if (!env.mailEnabled) {
-    const message = env.isDev
-      ? '未配置 SMTP_HOST：注册验证码只会打印到后端日志，并随接口返回 devCode'
-      : '未配置 SMTP_HOST：生产环境无法真实发送注册验证码，请尽快配置邮件服务';
-    app.log.warn(message);
+    app.log.warn('未配置 RESEND_API_KEY：验证码仅输出到后端日志，并随接口返回 devCode');
   }
 
   try {
