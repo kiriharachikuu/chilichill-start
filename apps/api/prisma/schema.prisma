@@ -321,3 +321,15 @@ model SystemSetting {
   updatedBy   User?    @relation("SettingUpdater", fields: [updatedById], references: [id])
   updatedById String?
 }
+
+// QQ 机器人捕获的推送目标群：机器人被拉入群（GROUP_ADD_ROBOT）或收到群消息时，
+// webhook 自动记录，供后台「推送目标」下拉选择；机器人被移出群（GROUP_DEL_ROBOT）时删除。
+// name 为 best-effort 补充（群信息接口仅白名单机器人可用），source 记录首次捕获来源事件。
+model BotBoundGroup {
+  id          String   @id @default(cuid())
+  groupOpenId String   @unique
+  name        String?
+  source      String   @default("GROUP_ADD_ROBOT")
+  lastSeenAt  DateTime @default(now())
+  createdAt   DateTime @default(now())
+}

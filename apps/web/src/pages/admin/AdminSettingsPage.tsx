@@ -29,7 +29,7 @@ import {
 import { ApiError, api } from '../../lib/api';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
-import { Field, Input, Textarea } from '../../components/Field';
+import { Field, Input, Select, Textarea } from '../../components/Field';
 import ImageUploader from '../../components/ImageUploader';
 import SectionHeading from '../../components/SectionHeading';
 import { useToast } from '../../components/Toast';
@@ -805,6 +805,36 @@ interface QQBotTestResult {
   error?: string;
 }
 
+// webhook 捕获的群（机器人被拉入群后自动记录）
+interface QQBotBoundGroupItem {
+  groupOpenId: string;
+  name: string | null;
+  source: string;
+  lastSeenAt: string;
+}
+
+interface QQBotGuildOption {
+  id: string;
+  name: string;
+}
+
+interface QQBotChannelOption {
+  id: string;
+  name: string;
+}
+
+interface QQBotGuildListResult {
+  ok: boolean;
+  guilds: QQBotGuildOption[];
+  error?: string;
+}
+
+interface QQBotChannelListResult {
+  ok: boolean;
+  channels: QQBotChannelOption[];
+  error?: string;
+}
+
 // QQ 机器人提醒设置：用户投稿后通过 QQ 官方机器人（api-v2）推送审核提醒
 function QQBotSettingsCard() {
   const toast = useToast();
@@ -815,6 +845,17 @@ function QQBotSettingsCard() {
   const [saving, setSaving] = useState(false);
   const [testing, setTesting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  // 频道选择器状态
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [guilds, setGuilds] = useState<QQBotGuildOption[]>([]);
+  const [guildId, setGuildId] = useState('');
+  const [channels, setChannels] = useState<QQBotChannelOption[]>([]);
+  const [channelPick, setChannelPick] = useState('');
+  const [loadingGuilds, setLoadingGuilds] = useState(false);
+  const [loadingChannels, setLoadingChannels] = useState(false);
+  const [pickerError, setPickerError] = useState('');
+  // webhook 捕获的群列表
+  const [boundGroups, setBoundGroups] = useState<QQBotBoundGroupItem[]>([]);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -837,9 +878,71 @@ function QQBotSettingsCard() {
     }
   }, []);
 
+  // 捕获群列表加载失败不阻塞设置编辑，仅静默忽略
+  const fetchBoundGroups = useCallback(async () => {
+    try {
+      const res = await api.get<{ items: QQBotBoundGroupItem[] }>('/api/admin/settings/qq-bot/groups');
+      setBoundGroups(res.items);
+    } catch {
+      // ignore
+    }
+  }, []);
+
   useEffect(() => {
     void fetchSettings();
-  }, [fetchSettings]);
+    void fetchBoundGroups();
+  }, [fetchSettings, fetchBoundGroups]);
+
+  // 打开/关闭频道选择面板；打开时拉取机器人所在频道列表
+  const toggleGuildPicker = useCallback(() => {
+    const next = !pickerOpen;
+    setPickerOpen(next);
+    if (!next) return;
+    setPickerError('');
+    setLoadingGuilds(true);
+    api
+      .get<QQBotGuildListResult>('/api/admin/settings/qq-bot/guilds')
+      .then((res) => {
+        if (res.ok) {
+          setGuilds(res.guilds);
+        } else {
+          setPickerError(res.error ?? '频道列表获取失败');
+        }
+      })
+      .catch((error) => {
+        setPickerError(error instanceof ApiError ? error.message : '频道列表获取失败');
+      })
+      .finally(() => setLoadingGuilds(false));
+  }, [pickerOpen]);
+
+  // 选择频道后联动拉取其文字子频道列表
+  const onPickGuild = useCallback((value: string) => {
+    setGuildId(value);
+    setChannels([]);
+    setChannelPick('');
+    setPickerError('');
+    if (!value) return;
+    setLoadingChannels(true);
+    api
+      .get<QQBotChannelListResult>(`/api/admin/settings/qq-bot/guilds/${encodeURIComponent(value)}/channels`)
+      .then((res) => {
+        if (res.ok) {
+          setChannels(res.channels);
+        } else {
+          setPickerError(res.error ?? '子频道列表获取失败');
+        }
+      })
+      .catch((error) => {
+        setPickerError(error instanceof ApiError ? error.message : '子频道列表获取失败');
+      })
+      .finally(() => setLoadingChannels(false));
+  }, []);
+
+  const confirmChannel = useCallback(() => {
+    if (!channelPick) return;
+    setForm({ ...form, channelId: channelPick });
+    setPickerOpen(false);
+  }, [channelPick, form]);
 
   const validate = useCallback((): boolean => {
     const next: Record<string, string> = {};
@@ -963,25 +1066,108 @@ function QQBotSettingsCard() {
             placeholder={hasAppSecret ? SECRET_PLACEHOLDER : '机器人管理端的 AppSecret'}
           />
         </Field>
-        <Field label="群 OpenID" error={errorOf('targets')} hint="群聊场景推送目标：机器人被拉入群后，从群消息事件的 group_openid 获取">
+        <Field
+          label="群 OpenID"
+          error={errorOf('targets')}
+          hint="群聊场景推送目标：可手动填写，或从下方已捕获的群中选择"
+        >
           <Input
             value={form.groupOpenId}
             maxLength={64}
             onChange={(event) => setForm({ ...form, groupOpenId: event.target.value })}
             placeholder="例如 5D6xxxxxxxxxxxxxxxx"
           />
+          {boundGroups.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {boundGroups.map((group) => {
+                const active = form.groupOpenId === group.groupOpenId;
+                return (
+                  <button
+                    key={group.groupOpenId}
+                    type="button"
+                    title={group.groupOpenId}
+                    onClick={() => setForm({ ...form, groupOpenId: group.groupOpenId })}
+                    className={`rounded-full border px-2.5 py-1 text-[11px] transition ${
+                      active
+                        ? 'border-amber/70 bg-amber/10 text-ink'
+                        : 'border-white/10 bg-white/[0.04] text-muted hover:border-white/25 hover:text-ink'
+                    }`}
+                  >
+                    {group.name ?? '未命名群'}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-2 text-[11px] text-muted/80">
+              暂无已捕获的群：在开放平台配置回调地址后，机器人被拉入群会自动出现在这里
+            </p>
+          )}
         </Field>
         <Field label="频道子频道 ID" hint="频道场景推送目标（文字子频道 channel_id），与群 OpenID 至少填一个">
-          <Input
-            value={form.channelId}
-            maxLength={64}
-            onChange={(event) => setForm({ ...form, channelId: event.target.value })}
-            placeholder="例如 123456"
-          />
+          <div className="flex items-center gap-2">
+            <Input
+              value={form.channelId}
+              maxLength={64}
+              onChange={(event) => setForm({ ...form, channelId: event.target.value })}
+              placeholder="例如 123456"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              className="shrink-0"
+              loading={loadingGuilds}
+              onClick={toggleGuildPicker}
+            >
+              从频道选择
+            </Button>
+          </div>
+          {pickerOpen ? (
+            <div className="mt-2 space-y-2 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <Select value={guildId} onChange={(event) => onPickGuild(event.target.value)}>
+                <option value="">选择机器人所在频道</option>
+                {guilds.map((guild) => (
+                  <option key={guild.id} value={guild.id}>
+                    {guild.name || guild.id}
+                  </option>
+                ))}
+              </Select>
+              <Select
+                value={channelPick}
+                disabled={!guildId || loadingChannels}
+                onChange={(event) => setChannelPick(event.target.value)}
+              >
+                <option value="">
+                  {guildId ? (loadingChannels ? '子频道加载中…' : '选择文字子频道') : '请先选择频道'}
+                </option>
+                {channels.map((channel) => (
+                  <option key={channel.id} value={channel.id}>
+                    {channel.name || channel.id}
+                  </option>
+                ))}
+              </Select>
+              {pickerError ? <p className="text-xs text-coral">{pickerError}</p> : null}
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setPickerOpen(false)}>
+                  取消
+                </Button>
+                <Button variant="primary" size="sm" disabled={!channelPick} onClick={confirmChannel}>
+                  填入
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </Field>
       </div>
-      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-muted">
-        通过 QQ 官方开放平台 API v2（api.bot.qq.com）发送主动消息：群主动消息受平台频控（未开启「机器人主动发言」的群会发送失败），频道发送要求机器人保持 WebSocket 在线。提醒为 best-effort，失败仅记录日志，不影响投稿提交。
+      <div className="space-y-1.5 rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-muted">
+        <p>
+          通过 QQ 官方开放平台 API v2（api.bot.qq.com）发送主动消息：群主动消息受平台频控（未开启「机器人主动发言」的群会发送失败），频道发送要求机器人保持 WebSocket 在线。提醒为 best-effort，失败仅记录日志，不影响投稿提交。
+        </p>
+        <p>
+          群自动捕获：在开放平台「开发设置」将回调地址配置为 <span className="text-ink">https://&lt;你的域名&gt;/api/qq-bot/webhook</span>
+          （需先在上方保存 AppSecret，平台验证请求才能通过），并订阅 GROUP_ADD_ROBOT / GROUP_DEL_ROBOT / GROUP_AT_MESSAGE_CREATE
+          事件，机器人被拉入的群会自动出现在上方供选择。
+        </p>
       </div>
       <div className="flex items-center justify-end gap-2 border-t border-white/10 pt-4">
         <Button

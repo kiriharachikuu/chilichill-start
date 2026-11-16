@@ -33,6 +33,7 @@ import { submissionsRoutes } from './routes/submissions';
 import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/uploads';
 import { userRoutes } from './routes/users';
+import { qqBotWebhookRoutes } from './routes/qq-bot-webhook';
 import { setMailConfigProvider } from './services/mail/mailer';
 import { getStoredMailSettings } from './services/mail/settings';
 
@@ -111,6 +112,7 @@ export async function buildApp() {
   metaRoutes(app);
   seoRoutes(app);
   submissionsRoutes(app);
+  qqBotWebhookRoutes(app);
   adminTagsRoutes(app);
   adminRulesRoutes(app);
   adminDashboardRoutes(app);

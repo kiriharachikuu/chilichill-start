@@ -72,10 +72,15 @@ async function fetchAccessToken(settings: StoredQQBotSettings): Promise<string> 
     return cachedToken.token;
   })();
 
-  // 结束后清除进行中标记：成功走缓存，失败允许下一次重试
-  void pendingTokenRequest.finally(() => {
-    pendingTokenRequest = null;
-  });
+  // 结束后清除进行中标记：成功走缓存，失败允许下一次重试。
+  // .finally 派生的 promise 在失败时也必须被消费，否则会产生 unhandled rejection（错误由调用方消费）。
+  pendingTokenRequest
+    .finally(() => {
+      pendingTokenRequest = null;
+    })
+    .catch(() => {
+      // 仅兜底防 unhandled rejection
+    });
   return pendingTokenRequest;
 }
 
@@ -104,9 +109,123 @@ async function postOpenApi(path: string, payload: Record<string, unknown>, token
   return data;
 }
 
+/** 调用开放平台 GET 接口；非 2xx 抛错，返回原始 JSON */
+async function getOpenApi(path: string, token: string): Promise<unknown> {
+  const response = await fetch(`${API_BASE}${path}`, {
+    method: 'GET',
+    headers: { Authorization: `QQBot ${token}` },
+    signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const data = body && typeof body === 'object' ? (body as Record<string, unknown>) : {};
+    throw new Error(errorOf(response, data));
+  }
+  return body;
+}
+
 function toResult(error: unknown): QQBotSendResult {
   const message = error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300);
   return { ok: false, error: message };
+}
+
+function errorMessageOf(error: unknown): string {
+  return error instanceof Error ? error.message.slice(0, 300) : String(error).slice(0, 300);
+}
+
+// ===== 列表查询：频道/子频道选择与群信息（供后台推送目标下拉使用）=====
+
+export interface QQBotGuildOption {
+  id: string;
+  name: string;
+}
+
+export interface QQBotChannelOption {
+  id: string;
+  name: string;
+}
+
+export interface QQBotGuildListResult {
+  ok: boolean;
+  guilds: QQBotGuildOption[];
+  error?: string;
+}
+
+/** 机器人已加入的频道列表（GET /users/@me/guilds），兼容裸数组与 {guilds} 包装 */
+export async function fetchQQBotGuilds(): Promise<QQBotGuildListResult> {
+  try {
+    const settings = await getStoredQQBotSettings();
+    if (!isConfigured(settings)) {
+      return { ok: false, guilds: [], error: 'QQ 机器人未配置 AppID/AppSecret' };
+    }
+    const token = await fetchAccessToken(settings);
+    const body = await getOpenApi('/users/@me/guilds?limit=100', token);
+    const list = Array.isArray(body) ? body : (body as Record<string, unknown> | null)?.guilds;
+    const guilds = (Array.isArray(list) ? list : [])
+      .map((entry) => entry as Record<string, unknown>)
+      .filter((entry) => typeof entry.id === 'string' && entry.id)
+      .map((entry) => ({
+        id: entry.id as string,
+        name: typeof entry.name === 'string' ? entry.name : '',
+      }));
+    return { ok: true, guilds };
+  } catch (error) {
+    return { ok: false, guilds: [], error: errorMessageOf(error) };
+  }
+}
+
+export interface QQBotChannelListResult {
+  ok: boolean;
+  channels: QQBotChannelOption[];
+  error?: string;
+}
+
+/** 频道下的文字子频道列表（GET /channels/{guild_id}/channels），仅保留 type 0 文字子频道 */
+export async function fetchQQBotGuildChannels(guildId: string): Promise<QQBotChannelListResult> {
+  try {
+    const settings = await getStoredQQBotSettings();
+    if (!isConfigured(settings)) {
+      return { ok: false, channels: [], error: 'QQ 机器人未配置 AppID/AppSecret' };
+    }
+    const token = await fetchAccessToken(settings);
+    const body = await getOpenApi(`/channels/${encodeURIComponent(guildId)}/channels`, token);
+    const list = Array.isArray(body) ? body : (body as Record<string, unknown> | null)?.channels;
+    const channels = (Array.isArray(list) ? list : [])
+      .map((entry) => entry as Record<string, unknown>)
+      .filter((entry) => typeof entry.id === 'string' && entry.id && Number(entry.type) === 0)
+      .map((entry) => ({
+        id: entry.id as string,
+        name: typeof entry.name === 'string' ? entry.name : '',
+      }));
+    return { ok: true, channels };
+  } catch (error) {
+    return { ok: false, channels: [], error: errorMessageOf(error) };
+  }
+}
+
+export interface QQBotGroupInfoResult {
+  ok: boolean;
+  groupName: string | null;
+  error?: string;
+}
+
+/** 获取群信息（GET /v2/groups/{id}/info）取群名；接口仅白名单机器人可用，失败由调用方 best-effort 处理 */
+export async function fetchQQBotGroupInfo(groupOpenId: string): Promise<QQBotGroupInfoResult> {
+  try {
+    const settings = await getStoredQQBotSettings();
+    if (!isConfigured(settings)) {
+      return { ok: false, groupName: null, error: 'QQ 机器人未配置 AppID/AppSecret' };
+    }
+    const token = await fetchAccessToken(settings);
+    const data = await getOpenApi(`/v2/groups/${encodeURIComponent(groupOpenId)}/info`, token);
+    const info = (data && typeof data === 'object' ? data : {}) as Record<string, unknown>;
+    return {
+      ok: true,
+      groupName: typeof info.group_name === 'string' && info.group_name ? info.group_name : null,
+    };
+  } catch (error) {
+    return { ok: false, groupName: null, error: errorMessageOf(error) };
+  }
 }
 
 /** 主动发送群文本消息（msg_type 0）；群主动消息受平台频控，失败仅返回错误不重试 */

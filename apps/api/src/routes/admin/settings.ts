@@ -19,12 +19,13 @@ import {
   saveStoredMailSettings,
   type StoredMailSettings,
 } from '../../services/mail/settings';
-import { broadcastQQBotMessage } from '../../services/qq-bot/client';
+import { broadcastQQBotMessage, fetchQQBotGuildChannels, fetchQQBotGuilds } from '../../services/qq-bot/client';
 import {
   getStoredQQBotSettings,
   saveStoredQQBotSettings,
   type StoredQQBotSettings,
 } from '../../services/qq-bot/settings';
+import { prisma } from '../../prisma';
 import {
   getStoredRegistrationSettings,
   saveStoredRegistrationSettings,
@@ -237,5 +238,29 @@ export function adminSettingsRoutes(app: FastifyInstance) {
   app.post('/api/admin/settings/qq-bot/test', { preHandler: [app.requireAdmin] }, async () => {
     const result = await broadcastQQBotMessage('这是一条测试消息：QQ 机器人投稿提醒已配置成功。');
     return result;
+  });
+
+  // 机器人已加入的频道列表，供后台「频道子频道 ID」下拉选择
+  app.get('/api/admin/settings/qq-bot/guilds', { preHandler: [app.requireAdmin] }, async () => {
+    return fetchQQBotGuilds();
+  });
+
+  // 指定频道下的文字子频道列表（type 0），与上一接口配合完成两级选择
+  app.get('/api/admin/settings/qq-bot/guilds/:guildId/channels', { preHandler: [app.requireAdmin] }, async (request) => {
+    const { guildId } = request.params as { guildId: string };
+    return fetchQQBotGuildChannels(guildId);
+  });
+
+  // webhook 捕获的群（机器人被拉入群/收到群消息时自动记录），供「群 OpenID」下拉选择
+  app.get('/api/admin/settings/qq-bot/groups', { preHandler: [app.requireAdmin] }, async () => {
+    const items = await prisma.botBoundGroup.findMany({ orderBy: [{ lastSeenAt: 'desc' }] });
+    return {
+      items: items.map((item) => ({
+        groupOpenId: item.groupOpenId,
+        name: item.name,
+        source: item.source,
+        lastSeenAt: item.lastSeenAt,
+      })),
+    };
   });
 }
