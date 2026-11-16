@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate, useSearchParams } from 'react-router-dom';
-import { CheckCircle2, Globe2, Images, Send, UsersRound } from 'lucide-react';
+import { CheckCircle2, Globe2, Images, MapPin, Send, UsersRound } from 'lucide-react';
 import type { MetaResponse, Submission } from '@spaceport/shared';
+import { REGIONS } from '@spaceport/shared';
 import { ApiError, api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { EMPTY_META, loadMeta } from '../lib/meta';
@@ -28,13 +29,23 @@ import { useToast } from '../components/Toast';
 
 type Tab = 'GROUP' | 'SITE' | 'GALLERY';
 
+// 首页空大区卡片跳转 /submit?region=CODE 时，预选「地区粉丝群」类型并展示提示。
+function resolveRegionHint(code: string | null): string | null {
+  if (!code) return null;
+  return REGIONS.find((region) => region.code === code)?.name ?? null;
+}
+
 export default function SubmitPage() {
   const { user, loading } = useAuth();
   const toast = useToast();
   const [searchParams] = useSearchParams();
   const [meta, setMeta] = useState<MetaResponse>(EMPTY_META);
   const [tab, setTab] = useState<Tab>(searchParams.get('tab') === 'gallery' ? 'GALLERY' : 'GROUP');
-  const [groupForm, setGroupForm] = useState<GroupFormState>(emptyGroupForm);
+  const regionHint = resolveRegionHint(searchParams.get('region'));
+  const [groupForm, setGroupForm] = useState<GroupFormState>(() => ({
+    ...emptyGroupForm(),
+    type: regionHint ? 'REGION' : '',
+  }));
   const [siteForm, setSiteForm] = useState<SiteFormState>(emptySiteForm);
   const [galleryForm, setGalleryForm] = useState<GalleryFormState>(emptyGalleryForm);
   const [groupErrors, setGroupErrors] = useState<FieldErrors>({});
@@ -208,6 +219,12 @@ export default function SubmitPage() {
 
       <div className="grid gap-8 lg:grid-cols-[1.6fr_0.9fr]">
         <Card hover={false}>
+          {tab === 'GROUP' && regionHint ? (
+            <p className="mb-4 flex items-center gap-2 border border-amber/30 bg-amber/10 px-3 py-2 text-xs text-amber">
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              本次为「{regionHint}」大区投稿：类型已选「地区粉丝群」，请在下方选择对应省份城市。
+            </p>
+          ) : null}
           {tab === 'GROUP' ? (
             <GroupFields value={groupForm} onChange={setGroupForm} meta={meta} errors={groupErrors} />
           ) : tab === 'GALLERY' ? (

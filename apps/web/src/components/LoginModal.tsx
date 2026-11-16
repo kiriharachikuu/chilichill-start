@@ -1,4 +1,5 @@
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
 import { Lock, Mail, UserRound } from 'lucide-react';
 import { api, formatApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
@@ -56,6 +57,8 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
   const [code, setCode] = useState('');
+  // 合规要求：注册默认不勾选协议，未勾选时注册按钮置灰
+  const [agreed, setAgreed] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -81,6 +84,7 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     if (!/^\S+@\S+\.\S+$/.test(email.trim())) nextErrors.email = '请输入有效的邮箱地址';
     if (password.length < 8) nextErrors.password = '密码至少 8 位';
     if (tab === 'register' && nickname.trim().length < 2) nextErrors.nickname = '昵称至少 2 个字';
+    if (tab === 'register' && !agreed) nextErrors.agreed = '请先阅读并同意用户协议与隐私政策';
     if ((tab === 'reset' || (tab === 'register' && emailCodeRequired)) && !/^\d{6}$/.test(code)) {
       nextErrors.code = '请输入 6 位数字验证码';
     }
@@ -98,7 +102,7 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
         await login(email.trim(), password);
         toast.success('登舱成功，祝你探索愉快');
       } else if (tab === 'register') {
-        await register(email.trim(), password, nickname.trim(), emailCodeRequired ? code : null);
+        await register(email.trim(), password, nickname.trim(), emailCodeRequired ? code : null, true);
         toast.success('账号已创建，欢迎加入空间站');
       } else {
         await api.post<void>('/api/auth/reset-password', { email: email.trim(), code, password });
@@ -211,7 +215,35 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           </div>
         ) : null}
 
-        <Button type="submit" fullWidth size="lg" loading={submitting}>
+        {tab === 'register' ? (
+          <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted">
+            <input
+              type="checkbox"
+              checked={agreed}
+              onChange={(event) => setAgreed(event.target.checked)}
+              className="mt-0.5 h-4 w-4 shrink-0 accent-amber"
+            />
+            <span>
+              我已阅读并同意
+              <Link to="/about" className="text-amber underline underline-offset-2">
+                《用户协议》
+              </Link>
+              与
+              <Link to="/privacy" className="text-amber underline underline-offset-2">
+                《隐私政策》
+              </Link>
+              {errors.agreed ? <span className="mt-1 block text-coral">{errors.agreed}</span> : null}
+            </span>
+          </label>
+        ) : null}
+
+        <Button
+          type="submit"
+          fullWidth
+          size="lg"
+          loading={submitting}
+          disabled={tab === 'register' && !agreed}
+        >
           {tab === 'login' ? '登舱' : tab === 'register' ? '创建通行证' : '重置密码'}
         </Button>
       </form>

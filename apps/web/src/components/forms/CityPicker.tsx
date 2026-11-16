@@ -70,9 +70,7 @@ function PickerLevel({
           value={value}
           disabled={disabled}
           onChange={(event) => onChange(event.target.value)}
-          className={`${inputClass} appearance-none pr-12 [&>option]:bg-space-900 [&>option]:text-ink ${
-            value ? 'text-ink' : 'text-muted/60'
-          }`}
+          className={`${inputClass} appearance-none pr-12 ${value ? 'text-ink' : 'text-muted/60'}`}
         >
           <option value="">{placeholder}</option>
           {options.map((option) => (

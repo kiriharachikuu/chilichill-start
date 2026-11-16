@@ -45,7 +45,7 @@ function sendCode(email: string, ip = '10.0.0.1') {
   });
 }
 
-function register(email: string, code: string, overrides: Record<string, string> = {}) {
+function register(email: string, code: string, overrides: Record<string, string | boolean> = {}) {
   return app.inject({
     method: 'POST',
     url: '/api/auth/register',
@@ -54,6 +54,7 @@ function register(email: string, code: string, overrides: Record<string, string>
       code,
       password: 'Passw0rd!',
       nickname: '测试乘客',
+      agreedPolicy: true,
       ...overrides,
     },
   });
@@ -280,7 +281,12 @@ describe('注册邮箱验证码开关（后台可关）', () => {
     const response = await app.inject({
       method: 'POST',
       url: '/api/auth/register',
-      payload: { email: TEST_EMAILS[0], password: 'Passw0rd!', nickname: '测试乘客' },
+      payload: {
+        email: TEST_EMAILS[0],
+        password: 'Passw0rd!',
+        nickname: '测试乘客',
+        agreedPolicy: true,
+      },
     });
     expect(response.statusCode).toBe(201);
     expect(response.json<{ user: { email: string } }>().user.email).toBe(TEST_EMAILS[0]);

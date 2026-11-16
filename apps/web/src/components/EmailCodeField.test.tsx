@@ -47,7 +47,8 @@ describe('EmailCodeField', () => {
     await user.click(screen.getByRole('button', { name: '获取验证码' }));
 
     expect(postMock).toHaveBeenCalledTimes(1);
-    expect(postMock).toHaveBeenCalledWith('/api/auth/email-code', { email: 'user@test.dev' });
+    // 组件发码时带上网络重试与超时配置（第 3 参）
+    expect(postMock).toHaveBeenCalledWith('/api/auth/email-code', { email: 'user@test.dev' }, { timeoutMs: 20_000, retries: 1 });
     expect(screen.getByText('验证码已发送，请查收邮箱')).toBeInTheDocument();
     expect(await screen.findByText('60s 后重发')).toBeInTheDocument();
   });
@@ -59,7 +60,11 @@ describe('EmailCodeField', () => {
 
     await user.click(screen.getByRole('button', { name: '获取验证码' }));
 
-    expect(postMock).toHaveBeenCalledWith('/api/auth/forgot-password', { email: 'user@test.dev' });
+    expect(postMock).toHaveBeenCalledWith(
+      '/api/auth/forgot-password',
+      { email: 'user@test.dev' },
+      { timeoutMs: 20_000, retries: 1 },
+    );
   });
 
   it('发码返回 CODE_COOLDOWN 且带 retryAfterSeconds 时，按结构化秒数进入倒计时并禁用按钮', async () => {
@@ -71,8 +76,8 @@ describe('EmailCodeField', () => {
 
     await user.click(screen.getByRole('button', { name: '获取验证码' }));
 
-    // 错误 toast 展示服务端 message
-    expect(screen.getByText('操作过于频繁，请 30 秒后再试')).toBeInTheDocument();
+    // 错误 toast 展示服务端 message；429 限流错误由 formatApiError 追加重试等待后缀
+    expect(screen.getByText('操作过于频繁，请 30 秒后再试（约 30 秒后可重试）')).toBeInTheDocument();
     // 按钮进入冷却态：显示剩余秒数并禁用
     const cooldownButton = await screen.findByRole('button', { name: '30s 后重发' });
     expect(cooldownButton).toBeDisabled();

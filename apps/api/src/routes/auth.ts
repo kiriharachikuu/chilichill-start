@@ -25,7 +25,12 @@ const registerSchema = emailSchema.extend({
     .optional(),
   password: z.string().min(8, '密码至少 8 位').max(72, '密码最多 72 位'),
   nickname: z.string().trim().min(1, '昵称不能为空').max(20, '昵称最多 20 个字'),
+  // 合规要求：注册必须显式同意用户协议与隐私政策，同意时间与版本号落库
+  agreedPolicy: z.literal(true, { message: '请先阅读并同意用户协议与隐私政策' }),
 });
+
+// 隐私政策当前版本：内容有实质变更时更新（对应前端 /privacy 页 POLICY_VERSION）
+const POLICY_VERSION = 'v1.0';
 
 const loginSchema = z.object({
   email: z.string().trim().email('邮箱格式不正确'),
@@ -65,7 +70,13 @@ function toPublicUser(user: PublicUser): PublicUser {
 }
 
 // 分配 6 位纯数字 uid：取当前最大 uid + 1（100001 起），冲突时重试。
-async function createUserWithUid(data: { email: string; nickname: string; passwordHash: string }): Promise<PublicUser> {
+async function createUserWithUid(data: {
+  email: string;
+  nickname: string;
+  passwordHash: string;
+  policyConsentAt: Date;
+  policyConsentVersion: string;
+}): Promise<PublicUser> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const last = await prisma.user.findFirst({ orderBy: { uid: 'desc' }, select: { uid: true } });
     const uid = (last?.uid ?? 100000) + 1;
@@ -157,7 +168,13 @@ export function authRoutes(app: FastifyInstance) {
           await consumeRegistrationCode(email, body.code);
         }
         const passwordHash = await bcrypt.hash(body.password, 10);
-        return createUserWithUid({ email, nickname: body.nickname, passwordHash });
+        return createUserWithUid({
+          email,
+          nickname: body.nickname,
+          passwordHash,
+          policyConsentAt: new Date(),
+          policyConsentVersion: POLICY_VERSION,
+        });
       },
     );
 

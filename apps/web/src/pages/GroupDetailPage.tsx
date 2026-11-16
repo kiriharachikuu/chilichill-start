@@ -20,11 +20,13 @@ import {
 import { api } from '../lib/api';
 import { copyText, formatDate, gradientFor, initialOf } from '../lib/format';
 import { externalRedirectHref } from '../lib/redirect';
+import { joinMethod } from '../lib/platform';
 import Badge, { type BadgeTone } from '../components/Badge';
 import Button, { buttonClass } from '../components/Button';
 import Card from '../components/Card';
 import EmptyState from '../components/EmptyState';
-import Modal from '../components/Modal';
+import GroupQrModal from '../components/GroupQrModal';
+import PlatformBadge from '../components/PlatformBadge';
 import TagChip from '../components/TagChip';
 import { useToast } from '../components/Toast';
 
@@ -96,6 +98,8 @@ export default function GroupDetailPage() {
     else toast.error('复制失败，请手动选择群号');
   };
 
+  const method = joinMethod(group);
+
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <Link
@@ -118,9 +122,7 @@ export default function GroupDetailPage() {
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone={TYPE_TONES[group.type]}>{GROUP_TYPE_LABELS[group.type]}</Badge>
-                {group.platform !== 'QQ' ? (
-                  <Badge tone="violet">{GROUP_PLATFORM_LABELS[group.platform]}</Badge>
-                ) : null}
+                <PlatformBadge platform={group.platform} />
                 {group.regionName ? <Badge tone="neutral">{group.regionName}大区</Badge> : null}
               </div>
               <h1 className="mt-2 text-2xl font-semibold text-ink sm:text-3xl">{group.name}</h1>
@@ -194,19 +196,33 @@ export default function GroupDetailPage() {
             </div>
 
             <div className="flex flex-col gap-2 pt-2">
-              {group.joinUrl ? (
+              {method.kind === 'LINK' && group.joinUrl ? (
                 <a
                   href={externalRedirectHref(group.joinUrl)}
                   className={buttonClass({ variant: 'primary', size: 'md', fullWidth: true })}
                 >
                   加入群舱 <ExternalLink className="h-4 w-4" />
                 </a>
-              ) : (
-                <Button variant="secondary" fullWidth disabled>
-                  暂无加入链接
+              ) : null}
+              {method.kind === 'QR' ? (
+                <Button
+                  variant="primary"
+                  fullWidth
+                  icon={<QrCode className="h-4 w-4" />}
+                  onClick={() => setQrOpen(true)}
+                >
+                  扫码入群
                 </Button>
-              )}
-              {group.qrcodeUrl ? (
+              ) : null}
+              {method.kind === 'NUMBER' ? (
+                <Button variant="primary" fullWidth icon={<Copy className="h-4 w-4" />} onClick={() => void handleCopy()}>
+                  复制群号加入
+                </Button>
+              ) : null}
+              {method.kind === 'NONE' ? (
+                <p className="text-center text-xs text-muted">入群方式待补充，欢迎向站长反馈</p>
+              ) : null}
+              {method.kind !== 'QR' && group.qrcodeUrl ? (
                 <Button
                   variant="secondary"
                   fullWidth
@@ -251,22 +267,7 @@ export default function GroupDetailPage() {
         </Link>
       ) : null}
 
-      <Modal open={qrOpen} onClose={() => setQrOpen(false)} title={`${group.name} · 入群二维码`} size="sm">
-        <div className="flex flex-col items-center gap-3">
-          {group.qrcodeUrl ? (
-            <div className="rounded-2xl border border-white/12 bg-space-950/60 p-3">
-              <img src={group.qrcodeUrl} alt={`${group.name} 二维码`} className="h-56 w-56 object-contain" />
-            </div>
-          ) : (
-            <div className="flex h-56 w-56 items-center justify-center rounded-2xl border border-dashed border-white/15 text-xs text-muted">
-              二维码暂未上传
-            </div>
-          )}
-          <p className="text-xs text-muted">
-            {group.groupNumber ? `扫码或使用群号 ${group.groupNumber} 加入` : '扫码加入粉丝群'}
-          </p>
-        </div>
-      </Modal>
+      <GroupQrModal group={group} open={qrOpen} onClose={() => setQrOpen(false)} />
     </div>
   );
 }

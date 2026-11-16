@@ -25,6 +25,9 @@ model User {
   city         String?
   passwordHash String
   role         String       @default("USER")
+  // 注册时对用户协议/隐私政策的同意记录（合规留痕）
+  policyConsentAt      DateTime?
+  policyConsentVersion String?
   createdAt    DateTime     @default(now())
   submissions  Submission[] @relation("Submitter")
   reviewed     Submission[] @relation("Reviewer")

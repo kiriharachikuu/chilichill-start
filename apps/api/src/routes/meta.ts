@@ -16,7 +16,7 @@ export function metaRoutes(app: FastifyInstance) {
   app.get('/api/meta', { preHandler: [app.optionalAuthenticate] }, async (request) => {
     const canSeePending = request.user?.role === 'ADMIN' || request.user?.role === 'MODERATOR';
 
-    const [cityCounts, cities, groupTags, siteTags, groups, sites, galleryImages, pendingSubmissions, registrationSettings] =
+    const [cityCounts, cities, groupTags, siteTags, groups, sites, galleryImages, pendingSubmissions, registrationSettings, regionGroupCounts, latestGroup, latestSite, latestImage] =
       await Promise.all([
       prisma.cityRegionRule.groupBy({ by: ['regionCode'], _count: { _all: true } }),
       prisma.cityRegionRule.findMany({
@@ -37,15 +37,26 @@ export function metaRoutes(app: FastifyInstance) {
         ? prisma.submission.count({ where: { status: 'PENDING' } })
         : Promise.resolve(0),
       getStoredRegistrationSettings(),
+      // 首页大区卡片展示真实群舱数（而非后台维护的城市规则数）
+      prisma.group.groupBy({ by: ['regionCode'], where: { published: true }, _count: { _all: true } }),
+      prisma.group.findFirst({ where: { published: true }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
+      prisma.site.findFirst({ where: { published: true }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
+      prisma.galleryImage.findFirst({ where: { published: true }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
     ]);
 
     const cityCountMap = new Map(cityCounts.map((item) => [item.regionCode, item._count._all]));
+    const regionGroupCountMap = new Map(regionGroupCounts.map((item) => [item.regionCode, item._count._all]));
+
+    const latestContentAt = [latestGroup?.updatedAt, latestSite?.updatedAt, latestImage?.updatedAt]
+      .filter((value): value is Date => Boolean(value))
+      .sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
 
     const response: MetaResponse = {
       regions: REGIONS.map((region) => ({
         code: region.code,
         name: region.name,
         cityCount: cityCountMap.get(region.code) ?? 0,
+        groupCount: regionGroupCountMap.get(region.code) ?? 0,
       })),
       cities: cities.map((rule) => ({
         city: rule.city,
@@ -62,6 +73,7 @@ export function metaRoutes(app: FastifyInstance) {
         sites,
         galleryImages,
         pendingSubmissions,
+        latestContentAt: latestContentAt ? latestContentAt.toISOString() : null,
       },
       modules: MODULES,
       registration: { emailCodeRequired: registrationSettings.emailCodeRequired },

@@ -25,7 +25,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<AuthUser>;
   /** code 为 null 表示注册无需邮箱验证码（后台开关关闭） */
-  register: (email: string, password: string, nickname: string, code: string | null) => Promise<AuthUser>;
+  register: (email: string, password: string, nickname: string, code: string | null, agreedPolicy?: boolean) => Promise<AuthUser>;
   logout: () => Promise<void>;
   refresh: () => Promise<AuthUser | null>;
 }
@@ -127,7 +127,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const registerInFlightRef = useRef(new Map<string, Promise<AuthUser>>());
 
   const register = useCallback(
-    async (email: string, password: string, nickname: string, code: string | null) => {
+    async (email: string, password: string, nickname: string, code: string | null, agreedPolicy?: boolean) => {
       const key = email.trim().toLowerCase();
       // 请求排队：同一邮箱的重复注册提交复用同一个在途请求，
       // 高并发下用户多点几次提交不会发出多份请求放大服务端压力
@@ -139,7 +139,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // 无需验证码时不携带 code 字段（后端对非空 code 强制 6 位数字格式）
           const data = await api.post<{ user: AuthUser }>(
             '/api/auth/register',
-            code ? { email: key, password, nickname, code } : { email: key, password, nickname },
+            code
+              ? { email: key, password, nickname, code, agreedPolicy }
+              : { email: key, password, nickname, agreedPolicy },
             // 注册高峰期 bcrypt 计算会在服务端排队，放宽超时并开启网络级自动重试
             { timeoutMs: 30_000, retries: 2 },
           );

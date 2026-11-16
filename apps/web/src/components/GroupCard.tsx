@@ -2,17 +2,18 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Copy, ExternalLink, QrCode } from 'lucide-react';
 import {
-  GROUP_PLATFORM_LABELS,
   GROUP_TYPE_LABELS,
   formatLocation,
   type Group,
 } from '@spaceport/shared';
 import { copyText, gradientFor, initialOf } from '../lib/format';
 import { externalRedirectHref } from '../lib/redirect';
+import { joinMetaLine, joinMethod } from '../lib/platform';
 import Badge, { type BadgeTone } from './Badge';
 import Button, { buttonClass } from './Button';
 import Card from './Card';
-import Modal from './Modal';
+import GroupQrModal from './GroupQrModal';
+import PlatformBadge from './PlatformBadge';
 import TagChip from './TagChip';
 import { useToast } from './Toast';
 
@@ -34,6 +35,8 @@ export default function GroupCard({ group }: { group: Group }) {
       : group.type === 'COLLEGE'
         ? [place || '未选城市', group.school].filter(Boolean).join(' · ')
         : [group.regionName ?? '待定', place || '未选城市'].filter(Boolean).join(' · ');
+
+  const method = joinMethod(group);
 
   const handleCopy = async () => {
     if (!group.groupNumber) return;
@@ -59,9 +62,7 @@ export default function GroupCard({ group }: { group: Group }) {
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-center gap-1.5">
               <Badge tone={TYPE_TONES[group.type]}>{GROUP_TYPE_LABELS[group.type]}</Badge>
-              {group.platform !== 'QQ' ? (
-                <Badge tone="violet">{GROUP_PLATFORM_LABELS[group.platform]}</Badge>
-              ) : null}
+              <PlatformBadge platform={group.platform} />
               {group.regionName ? (
                 <span className="text-xs text-muted">{location}</span>
               ) : null}
@@ -79,6 +80,8 @@ export default function GroupCard({ group }: { group: Group }) {
           {group.description}
         </p>
 
+        <p className="mt-2 text-[11px] text-muted/80">{joinMetaLine(group)}</p>
+
         {group.tags.length ? (
           <div className="mt-3 flex flex-wrap gap-1.5">
             {group.tags.slice(0, 4).map((tag) => (
@@ -90,57 +93,45 @@ export default function GroupCard({ group }: { group: Group }) {
           </div>
         ) : null}
 
-        <div className="mt-4 flex flex-wrap items-center gap-2 border-t border-white/8 pt-4">
+        <div className="mt-auto flex flex-nowrap items-center gap-1.5 border-t border-white/8 pt-4">
           {group.groupNumber ? (
             <button
               type="button"
               onClick={() => void handleCopy()}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 font-mono text-xs text-ink/85 transition hover:border-amber/40 hover:text-amber"
+              title={`点击复制群号 ${group.groupNumber}`}
+              className="inline-flex min-w-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 font-mono text-xs text-ink/85 transition hover:border-amber/40 hover:text-amber"
             >
-              <Copy className="h-3.5 w-3.5" /> {group.groupNumber}
+              <Copy className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{group.groupNumber}</span>
             </button>
           ) : null}
-          <span className="ml-auto flex items-center gap-2">
-            {group.qrcodeUrl ? (
-              <Button variant="ghost" size="sm" icon={<QrCode className="h-4 w-4" />} onClick={() => setQrOpen(true)}>
-                二维码
+          <span className="ml-auto flex shrink-0 items-center gap-1.5">
+            {method.kind === 'QR' ? (
+              <Button variant="secondary" size="sm" icon={<QrCode className="h-4 w-4" />} onClick={() => setQrOpen(true)}>
+                扫码入群
               </Button>
             ) : null}
-            {group.joinUrl ? (
+            {method.kind === 'NUMBER' ? (
+              <Button variant="secondary" size="sm" icon={<Copy className="h-4 w-4" />} onClick={() => void handleCopy()}>
+                复制群号
+              </Button>
+            ) : null}
+            {method.kind === 'LINK' && group.joinUrl ? (
               <a
                 href={externalRedirectHref(group.joinUrl)}
                 className={buttonClass({ variant: 'secondary', size: 'sm' })}
               >
                 加入群舱 <ExternalLink className="h-3.5 w-3.5" />
               </a>
-            ) : (
-              <span className="text-xs text-muted">暂无加入链接</span>
-            )}
+            ) : null}
+            {method.kind === 'NONE' ? (
+              <span className="text-xs text-muted">入群方式待补充</span>
+            ) : null}
           </span>
         </div>
       </Card>
 
-      <Modal open={qrOpen} onClose={() => setQrOpen(false)} title={`${group.name} · 入群二维码`} size="sm">
-        <div className="flex flex-col items-center gap-3">
-          {group.qrcodeUrl ? (
-            <div className="rounded-2xl border border-white/12 bg-space-950/60 p-3">
-              <img src={group.qrcodeUrl} alt={`${group.name} 二维码`} className="h-56 w-56 object-contain" />
-            </div>
-          ) : (
-            <div className="flex h-56 w-56 items-center justify-center rounded-2xl border border-dashed border-white/15 text-xs text-muted">
-              二维码暂未上传
-            </div>
-          )}
-          <p className="text-xs text-muted">
-            {group.groupNumber ? `扫码或使用群号 ${group.groupNumber} 加入` : '扫码加入粉丝群'}
-          </p>
-          {group.groupNumber ? (
-            <Button variant="secondary" size="sm" icon={<Copy className="h-4 w-4" />} onClick={() => void handleCopy()}>
-              复制群号
-            </Button>
-          ) : null}
-        </div>
-      </Modal>
+      <GroupQrModal group={group} open={qrOpen} onClose={() => setQrOpen(false)} />
     </>
   );
 }

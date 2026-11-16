@@ -1,0 +1,11 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /me
+Disallow: /submit
+Disallow: /redirect
+Disallow: /space/
+Disallow: /login
+Disallow: /admin
+
+Sitemap: https://ccspace.chikuu.top/sitemap.xml

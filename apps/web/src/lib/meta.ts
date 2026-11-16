@@ -2,10 +2,10 @@ import { REGIONS, type MetaResponse } from '@spaceport/shared';
 import { api } from './api';
 
 export const EMPTY_META: MetaResponse = {
-  regions: REGIONS.map((region) => ({ code: region.code, name: region.name, cityCount: 0 })),
+  regions: REGIONS.map((region) => ({ code: region.code, name: region.name, cityCount: 0, groupCount: 0 })),
   cities: [],
   tags: { group: [], sites: [] },
-  stats: { groups: 0, sites: 0, galleryImages: 0, pendingSubmissions: 0 },
+  stats: { groups: 0, sites: 0, galleryImages: 0, pendingSubmissions: 0, latestContentAt: null },
   modules: [],
   registration: { emailCodeRequired: true },
 };

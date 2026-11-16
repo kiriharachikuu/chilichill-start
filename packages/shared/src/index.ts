@@ -249,10 +249,17 @@ export interface SiteListResponse extends Paginated<Site> {
 }
 
 export interface MetaResponse {
-  regions: { code: string; name: string; cityCount: number }[];
+  regions: { code: string; name: string; cityCount: number; groupCount: number }[];
   cities: { city: string; regionCode: string; regionName: string; province: string | null }[];
   tags: { group: Tag[]; sites: Tag[] };
-  stats: { groups: number; sites: number; galleryImages: number; pendingSubmissions: number };
+  stats: {
+    groups: number;
+    sites: number;
+    galleryImages: number;
+    pendingSubmissions: number;
+    // 最近一次内容更新时间（群舱/站点/画廊取最大 updatedAt），用于首页「最近更新」展示
+    latestContentAt: string | null;
+  };
   modules: NavModule[];
   registration: { emailCodeRequired: boolean };
 }

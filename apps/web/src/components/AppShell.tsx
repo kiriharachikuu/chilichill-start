@@ -262,9 +262,17 @@ export default function AppShell() {
 
         <footer className="mt-auto border-t border-space-200 bg-white px-5 py-6 text-xs text-muted">
           <div className="mx-auto flex max-w-6xl flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <p className="flex items-center gap-1.5">
-              <Heart className="h-3.5 w-3.5 text-amber" />
-              厚嘴唇空间站 · 非官方 ChiliChill 粉丝导航
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <span className="flex items-center gap-1.5">
+                <Heart className="h-3.5 w-3.5 text-amber" />
+                厚嘴唇空间站 · 非官方 ChiliChill 粉丝导航
+              </span>
+              <Link to="/about" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
+                关于本站
+              </Link>
+              <Link to="/privacy" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
+                隐私政策
+              </Link>
             </p>
             <p>内容由粉丝投稿，本站不代表官方立场</p>
           </div>

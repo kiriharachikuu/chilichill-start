@@ -6,8 +6,8 @@ import {
   Images,
   MapPin,
   Play,
+  Plus,
   Send,
-  Signal,
   Sparkles,
   UsersRound,
 } from 'lucide-react';
@@ -22,6 +22,7 @@ import {
 import { api } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { loadMeta, EMPTY_META } from '../lib/meta';
+import { formatFromNow } from '../lib/format';
 import { MODULES, moduleBlurb, moduleIcon, moduleTone } from '../config/modules';
 import { buttonClass } from '../components/Button';
 import { useLoginDialog } from '../components/LoginModal';
@@ -100,11 +101,11 @@ export default function HomePage() {
       hint: '粉丝创作的绘画与摄影',
     },
     {
-      label: '待校准信号',
-      value: meta.stats.pendingSubmissions,
-      icon: Signal,
+      label: '最近更新',
+      value: formatFromNow(meta.stats.latestContentAt),
+      icon: Sparkles,
       tone: 'text-amber',
-      hint: '站长正在逐条审核',
+      hint: '星轨持续接收新信号',
     },
   ];
 
@@ -188,7 +189,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Region Routes"
             title="按大区进入轨道"
-            description="每个大区下都有城市星港，点击即可查看对应群舱。"
+            description="点击大区查看该区域的全部群舱；尚未开舱的区域欢迎投出第一个群。"
             action={
               <Link to="/groups" className={buttonClass({ variant: 'ghost', size: 'sm' })}>
                 全部群舱 <ArrowRight className="h-4 w-4" />
@@ -196,19 +197,35 @@ export default function HomePage() {
             }
           />
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {meta.regions.map((region) => (
-              <Link
-                key={region.code}
-                to={`/groups?region=${region.code}`}
-                className="group flex flex-col border border-space-200 bg-white px-4 py-4 transition-colors hover:border-amber"
-              >
-                <span className="flex items-center justify-between">
-                  <span className="text-sm font-extrabold text-ink">{region.name}</span>
-                  <MapPin className="h-3.5 w-3.5 text-muted transition-colors group-hover:text-amber" />
-                </span>
-                <span className="mt-2 text-[11px] text-muted">{region.cityCount} 个城市星港</span>
-              </Link>
-            ))}
+            {meta.regions.map((region) =>
+              region.groupCount > 0 ? (
+                <Link
+                  key={region.code}
+                  to={`/groups?region=${region.code}`}
+                  className="group flex flex-col border border-space-200 bg-white px-4 py-4 transition-colors hover:border-amber"
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="text-sm font-extrabold text-ink">{region.name}</span>
+                    <MapPin className="h-3.5 w-3.5 text-muted transition-colors group-hover:text-amber" />
+                  </span>
+                  <span className="mt-2 text-[11px] text-muted">{region.groupCount} 个群舱</span>
+                </Link>
+              ) : (
+                <Link
+                  key={region.code}
+                  to={`/submit?tab=group&region=${region.code}`}
+                  className="group flex flex-col border border-dashed border-space-200 bg-transparent px-4 py-4 transition-colors hover:border-amber"
+                >
+                  <span className="flex items-center justify-between">
+                    <span className="text-sm font-extrabold text-muted">{region.name}</span>
+                    <Plus className="h-3.5 w-3.5 text-muted transition-colors group-hover:text-amber" />
+                  </span>
+                  <span className="mt-2 text-[11px] text-muted/70 transition-colors group-hover:text-amber">
+                    待开舱 · 欢迎首投
+                  </span>
+                </Link>
+              ),
+            )}
           </div>
         </section>
 

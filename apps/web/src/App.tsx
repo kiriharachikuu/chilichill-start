@@ -16,6 +16,8 @@ import LoginPage from './pages/LoginPage';
 import ExternalRedirectPage from './pages/ExternalRedirectPage';
 import SubmitPage from './pages/SubmitPage';
 import MePage from './pages/MePage';
+import AboutPage from './pages/AboutPage';
+import PrivacyPage from './pages/PrivacyPage';
 import NotFoundPage from './pages/NotFoundPage';
 
 // 控制舱整组按需加载：普通访客无需下载后台代码
@@ -89,6 +91,8 @@ export default function App() {
               <Route path="space/:uid" element={<SpacePage />} />
               <Route path="login" element={<LoginPage />} />
               <Route path="redirect" element={<ExternalRedirectPage />} />
+              <Route path="about" element={<AboutPage />} />
+              <Route path="privacy" element={<PrivacyPage />} />
 
               <Route path="admin" element={<ProtectedAdminRoute />}>
                 <Route element={<AdminLayout />}>
