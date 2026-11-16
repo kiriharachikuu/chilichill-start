@@ -22,6 +22,7 @@ import NotFoundPage from './pages/NotFoundPage';
 
 // 控制舱整组按需加载：普通访客无需下载后台代码
 const AdminLayout = lazy(() => import('./pages/admin/AdminLayout'));
+const AdminDashboardPage = lazy(() => import('./pages/admin/AdminDashboardPage'));
 const AdminReviewPage = lazy(() => import('./pages/admin/AdminReviewPage'));
 const AdminContentPage = lazy(() => import('./pages/admin/AdminContentPage'));
 const AdminActivitiesPage = lazy(() => import('./pages/admin/AdminActivitiesPage'));
@@ -96,7 +97,8 @@ export default function App() {
 
               <Route path="admin" element={<ProtectedAdminRoute />}>
                 <Route element={<AdminLayout />}>
-                  <Route index element={<AdminReviewPage />} />
+                  <Route index element={<AdminDashboardPage />} />
+                  <Route path="review" element={<AdminReviewPage />} />
                   <Route path="content" element={<AdminContentPage />} />
                   <Route path="activities" element={<AdminActivitiesPage />} />
                   <Route path="reports" element={<AdminReportsPage />} />

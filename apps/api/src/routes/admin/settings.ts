@@ -1,11 +1,16 @@
 import type { FastifyInstance } from 'fastify';
 import {
   MAIL_SECRET_KEEP,
+  QQ_BOT_SECRET_KEEP,
   STORAGE_SECRET_KEEP,
   mailSettingsSchema,
+  qqBotSettingsSchema,
   registrationSettingsSchema,
+  siteSettingsSchema,
   storageSettingsSchema,
+  type QQBotSettings,
   type RegistrationSettings,
+  type SiteSettings,
   type StorageSettings,
 } from '@spaceport/shared';
 import { HttpError } from '../../lib/errors';
@@ -14,10 +19,20 @@ import {
   saveStoredMailSettings,
   type StoredMailSettings,
 } from '../../services/mail/settings';
+import { broadcastQQBotMessage } from '../../services/qq-bot/client';
+import {
+  getStoredQQBotSettings,
+  saveStoredQQBotSettings,
+  type StoredQQBotSettings,
+} from '../../services/qq-bot/settings';
 import {
   getStoredRegistrationSettings,
   saveStoredRegistrationSettings,
 } from '../../services/registration-settings';
+import {
+  getStoredSiteSettings,
+  saveStoredSiteSettings,
+} from '../../services/site-settings';
 import {
   getStoredStorageSettings,
   saveStoredStorageSettings,
@@ -162,5 +177,65 @@ export function adminSettingsRoutes(app: FastifyInstance) {
     const input = registrationSettingsSchema.parse(request.body ?? {});
     const item: RegistrationSettings = await saveStoredRegistrationSettings(input);
     return { item };
+  });
+
+  // ---- 站点信息设置（About 页备案号/联系邮箱/赞助支持）----
+
+  app.get('/api/admin/settings/site', { preHandler: [app.requireAdmin] }, async () => {
+    const item = await getStoredSiteSettings();
+    return { item };
+  });
+
+  app.put('/api/admin/settings/site', { preHandler: [app.requireAdmin] }, async (request) => {
+    const input = siteSettingsSchema.parse(request.body ?? {});
+    const item: SiteSettings = await saveStoredSiteSettings(input);
+    return { item };
+  });
+
+  // ---- QQ 机器人提醒设置（用户投稿后推送审核提醒）----
+
+  // 对外输出时用哨兵值替换 AppSecret 明文，前端保存时原样带回表示「保留现有值」
+  function maskQQBotSettings(stored: StoredQQBotSettings): QQBotSettings {
+    return {
+      appId: stored.appId,
+      appSecret: stored.appSecret ? QQ_BOT_SECRET_KEEP : '',
+      groupOpenId: stored.groupOpenId,
+      channelId: stored.channelId,
+      enabled: stored.enabled,
+    };
+  }
+
+  app.get('/api/admin/settings/qq-bot', { preHandler: [app.requireAdmin] }, async () => {
+    const stored = await getStoredQQBotSettings();
+    return { item: maskQQBotSettings(stored) };
+  });
+
+  app.put('/api/admin/settings/qq-bot', { preHandler: [app.requireAdmin] }, async (request) => {
+    const input = qqBotSettingsSchema.parse(request.body ?? {});
+    const existing = await getStoredQQBotSettings();
+
+    // AppSecret 传 __KEEP__ 表示沿用现有值，避免明文在前后端往返
+    const appSecret = input.appSecret === QQ_BOT_SECRET_KEEP ? existing.appSecret : input.appSecret;
+    if (!appSecret) {
+      throw new HttpError(400, 'VALIDATION_ERROR', 'AppSecret 不能为空');
+    }
+    if (input.enabled && !input.groupOpenId && !input.channelId) {
+      throw new HttpError(400, 'VALIDATION_ERROR', '启用提醒前请填写群 OpenID 或频道子频道 ID');
+    }
+
+    const item = await saveStoredQQBotSettings({
+      appId: input.appId,
+      appSecret,
+      groupOpenId: input.groupOpenId,
+      channelId: input.channelId,
+      enabled: input.enabled,
+    });
+    return { item };
+  });
+
+  // 测试发送：用已保存的配置向所有推送目标发一条测试消息（any 成功即 ok）
+  app.post('/api/admin/settings/qq-bot/test', { preHandler: [app.requireAdmin] }, async () => {
+    const result = await broadcastQQBotMessage('这是一条测试消息：QQ 机器人投稿提醒已配置成功。');
+    return result;
   });
 }

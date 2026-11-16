@@ -7,6 +7,7 @@ import { serializeSubmission } from '../lib/serialize';
 import { loadTargetFor, loadTargetsFor } from '../lib/target';
 import { getEntity } from '../modules/entities';
 import { requireUser } from '../plugins/auth';
+import { notifySubmissionInBackground } from '../services/qq-bot/notify';
 import { prisma } from '../prisma';
 
 const mineQuerySchema = z.object({
@@ -61,6 +62,12 @@ export function submissionsRoutes(app: FastifyInstance) {
         siteTargetId: body.entityType === 'SITE' ? targetId : null,
       },
     });
+
+    // 后台 fire-and-forget 推送 QQ 机器人审核提醒，不阻塞投稿响应
+    notifySubmissionInBackground(
+      { entityType: body.entityType, entityLabel: handler.label, mode: body.mode, payload: normalized, submitterId: user.sub },
+      request.log,
+    );
 
     return reply.status(201).send({ item: serializeSubmission(submission, target) });
   });
@@ -161,6 +168,12 @@ export function submissionsRoutes(app: FastifyInstance) {
           reviewedAt: null,
         },
       });
+
+      // 重新提交后重新进入审核队列，同样推送 QQ 机器人提醒
+      notifySubmissionInBackground(
+        { entityType: updated.entityType, entityLabel: handler.label, mode: updated.mode, payload: normalized, submitterId: user.sub },
+        request.log,
+      );
 
       const target = await loadTargetFor(updated.entityType, updated.targetId);
       return { item: serializeSubmission(updated, target) };

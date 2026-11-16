@@ -12,6 +12,7 @@ import { env } from './env';
 import { registerErrorHandler } from './lib/errors';
 import { registerAuthPlugin } from './plugins/auth';
 import { adminContentRoutes } from './routes/admin/content';
+import { adminDashboardRoutes } from './routes/admin/dashboard';
 import { adminReviewRoutes } from './routes/admin/review';
 import { adminRulesRoutes } from './routes/admin/rules';
 import { adminTagsRoutes } from './routes/admin/tags';
@@ -112,6 +113,7 @@ export async function buildApp() {
   submissionsRoutes(app);
   adminTagsRoutes(app);
   adminRulesRoutes(app);
+  adminDashboardRoutes(app);
   adminReviewRoutes(app);
   adminContentRoutes(app);
   adminActivitiesRoutes(app);

@@ -1,19 +1,36 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Cloud, CloudCog, HardDrive, Loader2, Mail, Save, ShieldCheck, UserRoundPlus } from 'lucide-react';
+import {
+  Cloud,
+  CloudCog,
+  HardDrive,
+  HeartHandshake,
+  Loader2,
+  Mail,
+  MessageSquare,
+  Save,
+  SendHorizonal,
+  ShieldCheck,
+  UserRoundPlus,
+  Globe,
+} from 'lucide-react';
 import {
   MAIL_SECRET_KEEP,
+  QQ_BOT_SECRET_KEEP,
   STORAGE_MODES,
   STORAGE_MODE_LABELS,
   STORAGE_SECRET_KEEP,
   type MailSettings,
+  type QQBotSettings,
   type RegistrationSettings,
+  type SiteSettings,
   type StorageMode,
   type StorageSettings,
 } from '@spaceport/shared';
 import { ApiError, api } from '../../lib/api';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
-import { Field, Input } from '../../components/Field';
+import { Field, Input, Textarea } from '../../components/Field';
+import ImageUploader from '../../components/ImageUploader';
 import SectionHeading from '../../components/SectionHeading';
 import { useToast } from '../../components/Toast';
 
@@ -169,7 +186,7 @@ export default function AdminSettingsPage() {
       <SectionHeading
         eyebrow="Settings"
         title="系统设置"
-        description="配置上传图片的存储方式、注册流程与邮件发送参数；保存后即时生效"
+        description="配置站点信息、存储方式、注册流程与邮件发送参数；保存后即时生效"
         action={
           <Button
             variant="ghost"
@@ -346,9 +363,161 @@ export default function AdminSettingsPage() {
       )}
 
       {/* 注册与邮件设置卡片独立加载，与上方存储设置互不影响 */}
+      <SiteSettingsCard />
       <RegistrationSettingsCard />
       <MailSettingsCard />
+      <QQBotSettingsCard />
     </div>
+  );
+}
+
+const EMAIL_PATTERN_SITE = /^\S+@\S+\.\S+$/;
+
+interface SiteForm {
+  icpNumber: string;
+  contactEmail: string;
+  sponsorNote: string;
+  sponsorQrcodeUrl: string | null;
+}
+
+const EMPTY_SITE: SiteForm = { icpNumber: '', contactEmail: '', sponsorNote: '', sponsorQrcodeUrl: null };
+
+// 站点信息：About 页展示的备案号、联系邮箱与赞助支持（赞赏码），留空不展示
+function SiteSettingsCard() {
+  const toast = useToast();
+  const [form, setForm] = useState<SiteForm>(EMPTY_SITE);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    setFailed(false);
+    try {
+      const res = await api.get<{ item: SiteSettings }>('/api/admin/settings/site');
+      const item = res.item;
+      setForm({
+        icpNumber: item.icpNumber ?? '',
+        contactEmail: item.contactEmail ?? '',
+        sponsorNote: item.sponsorNote ?? '',
+        sponsorQrcodeUrl: item.sponsorQrcodeUrl ?? null,
+      });
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchSettings();
+  }, [fetchSettings]);
+
+  const validate = useCallback((): boolean => {
+    const next: Record<string, string> = {};
+    if (form.contactEmail.trim() && !EMAIL_PATTERN_SITE.test(form.contactEmail.trim())) {
+      next['contactEmail'] = '联系邮箱格式不正确';
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }, [form]);
+
+  const save = useCallback(async () => {
+    if (saving) return;
+    if (!validate()) return;
+    setSaving(true);
+    try {
+      await api.put<{ item: SiteSettings }>('/api/admin/settings/site', {
+        icpNumber: form.icpNumber.trim(),
+        contactEmail: form.contactEmail.trim(),
+        sponsorNote: form.sponsorNote.trim(),
+        sponsorQrcodeUrl: form.sponsorQrcodeUrl,
+      });
+      toast.success('站点信息已保存并生效');
+      void fetchSettings();
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : '保存失败，请稍后再试');
+    } finally {
+      setSaving(false);
+    }
+  }, [saving, validate, form, toast, fetchSettings]);
+
+  const errorOf = (key: string) => errors[key];
+
+  if (loading) {
+    return (
+      <Card className="flex items-center justify-center px-4 py-10 text-sm text-muted">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> 站点信息加载中…
+      </Card>
+    );
+  }
+  if (failed) {
+    return (
+      <Card className="flex items-center justify-center gap-3 px-4 py-10 text-sm text-muted">
+        站点信息加载失败
+        <Button variant="ghost" size="sm" onClick={() => void fetchSettings()}>
+          重试
+        </Button>
+      </Card>
+    );
+  }
+  return (
+    <Card className="space-y-6 p-5 sm:p-6">
+      <p className="flex items-center gap-2 text-sm font-extrabold text-ink">
+        <Globe className="h-4 w-4 text-amber" />
+        站点信息
+      </p>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="ICP 备案号" hint="例如 粤ICP备XXXXXXXX号；留空则 About 页不展示备案链接">
+          <Input
+            value={form.icpNumber}
+            maxLength={60}
+            onChange={(event) => setForm({ ...form, icpNumber: event.target.value })}
+            placeholder="粤ICP备2024000000号"
+          />
+        </Field>
+        <Field label="联系邮箱" error={errorOf('contactEmail')} hint="展示在 About 页「加入维护」板块；留空不展示">
+          <Input
+            value={form.contactEmail}
+            maxLength={200}
+            onChange={(event) => setForm({ ...form, contactEmail: event.target.value })}
+            placeholder="admin@example.com"
+          />
+        </Field>
+      </div>
+      <Field label="赞助说明" hint="展示在 About 页「赞助支持」板块，最多 200 字；留空不展示该板块">
+        <Textarea
+          rows={3}
+          value={form.sponsorNote}
+          maxLength={200}
+          onChange={(event) => setForm({ ...form, sponsorNote: event.target.value })}
+          placeholder="例如：服务器与域名维护需要成本，若本站对你有帮助，欢迎请站长喝杯奶茶～"
+        />
+      </Field>
+      <Field label="赞赏码" hint="上传后在 About 页「赞助支持」板块展示，访客可点击放大">
+        <div className="w-44">
+          <ImageUploader
+            variant="square"
+            label=""
+            hint=""
+            value={form.sponsorQrcodeUrl}
+            onChange={(url) => setForm({ ...form, sponsorQrcodeUrl: url })}
+          />
+        </div>
+      </Field>
+      <div className="flex items-center justify-end border-t border-white/10 pt-4">
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={saving}
+          icon={saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          onClick={() => void save()}
+        >
+          {saving ? '保存中…' : '保存设置'}
+        </Button>
+      </div>
+    </Card>
   );
 }
 
@@ -610,6 +779,224 @@ function MailSettingsCard() {
           variant="primary"
           size="sm"
           disabled={saving}
+          icon={saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+          onClick={() => void save()}
+        >
+          {saving ? '保存中…' : '保存设置'}
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
+interface QQBotForm {
+  appId: string;
+  appSecret: string;
+  groupOpenId: string;
+  channelId: string;
+  enabled: boolean;
+}
+
+const EMPTY_QQ_BOT: QQBotForm = { appId: '', appSecret: '', groupOpenId: '', channelId: '', enabled: false };
+
+interface QQBotTestResult {
+  ok: boolean;
+  sent: string[];
+  error?: string;
+}
+
+// QQ 机器人提醒设置：用户投稿后通过 QQ 官方机器人（api-v2）推送审核提醒
+function QQBotSettingsCard() {
+  const toast = useToast();
+  const [form, setForm] = useState<QQBotForm>(EMPTY_QQ_BOT);
+  const [hasAppSecret, setHasAppSecret] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testing, setTesting] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
+
+  const fetchSettings = useCallback(async () => {
+    setLoading(true);
+    setFailed(false);
+    try {
+      const res = await api.get<{ item: QQBotSettings }>('/api/admin/settings/qq-bot');
+      const item = res.item;
+      setHasAppSecret(item.appSecret === QQ_BOT_SECRET_KEEP);
+      setForm({
+        appId: item.appId,
+        appSecret: item.appSecret === QQ_BOT_SECRET_KEEP ? '' : item.appSecret,
+        groupOpenId: item.groupOpenId ?? '',
+        channelId: item.channelId ?? '',
+        enabled: item.enabled,
+      });
+    } catch {
+      setFailed(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void fetchSettings();
+  }, [fetchSettings]);
+
+  const validate = useCallback((): boolean => {
+    const next: Record<string, string> = {};
+    if (!form.appId.trim()) next['appId'] = 'AppID 不能为空';
+    if (!form.appSecret.trim() && !hasAppSecret) next['appSecret'] = 'AppSecret 不能为空';
+    if (form.enabled && !form.groupOpenId.trim() && !form.channelId.trim()) {
+      next['targets'] = '启用提醒前请填写群 OpenID 或频道子频道 ID';
+    }
+    setErrors(next);
+    return Object.keys(next).length === 0;
+  }, [form, hasAppSecret]);
+
+  /** 保存当前表单；返回是否保存成功（测试发送前先保存） */
+  const save = useCallback(async (): Promise<boolean> => {
+    if (!validate()) return false;
+    setSaving(true);
+    try {
+      await api.put<{ item: QQBotSettings }>('/api/admin/settings/qq-bot', {
+        // AppSecret 留空且已配置过时传哨兵值，表示保留现有密钥
+        appId: form.appId.trim(),
+        appSecret: form.appSecret.trim() ? form.appSecret.trim() : hasAppSecret ? QQ_BOT_SECRET_KEEP : '',
+        groupOpenId: form.groupOpenId.trim() || null,
+        channelId: form.channelId.trim() || null,
+        enabled: form.enabled,
+      });
+      toast.success('QQ 机器人设置已保存并生效');
+      void fetchSettings();
+      return true;
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : '保存失败，请稍后再试');
+      return false;
+    } finally {
+      setSaving(false);
+    }
+  }, [validate, form, hasAppSecret, toast, fetchSettings]);
+
+  // 测试发送前先保存，保证用后台最新配置发送
+  const sendTest = useCallback(async () => {
+    if (testing) return;
+    const saved = await save();
+    if (!saved) return;
+    setTesting(true);
+    try {
+      const res = await api.post<QQBotTestResult>('/api/admin/settings/qq-bot/test');
+      if (res.ok) {
+        toast.success(`测试消息已发送：${res.sent.join('、')}`);
+      } else {
+        toast.error(res.error ?? '测试消息发送失败');
+      }
+    } catch (error) {
+      toast.error(error instanceof ApiError ? error.message : '测试发送失败，请稍后再试');
+    } finally {
+      setTesting(false);
+    }
+  }, [testing, save, toast]);
+
+  const errorOf = (key: string) => errors[key];
+
+  if (loading) {
+    return (
+      <Card className="flex items-center justify-center px-4 py-10 text-sm text-muted">
+        <Loader2 className="mr-2 h-4 w-4 animate-spin" /> QQ 机器人设置加载中…
+      </Card>
+    );
+  }
+  if (failed) {
+    return (
+      <Card className="flex items-center justify-center gap-3 px-4 py-10 text-sm text-muted">
+        QQ 机器人设置加载失败
+        <Button variant="ghost" size="sm" onClick={() => void fetchSettings()}>
+          重试
+        </Button>
+      </Card>
+    );
+  }
+  return (
+    <Card className="space-y-6 p-5 sm:p-6">
+      <p className="flex items-center gap-2 text-sm font-extrabold text-ink">
+        <MessageSquare className="h-4 w-4 text-amber" />
+        QQ 机器人提醒
+      </p>
+      <Field label="投稿提醒开关" hint="开启后，用户提交/重新提交投稿时机器人会向你配置的群或频道推送审核提醒">
+        <div className="grid gap-3 sm:grid-cols-2">
+          {([true, false] as const).map((value) => {
+            const active = form.enabled === value;
+            return (
+              <button
+                key={String(value)}
+                type="button"
+                onClick={() => setForm({ ...form, enabled: value })}
+                className={`flex flex-col items-start gap-2 rounded-xl border px-4 py-3.5 text-left transition ${
+                  active ? 'border-amber/70 bg-amber/10' : 'border-white/10 bg-white/[0.04] hover:border-white/25'
+                }`}
+              >
+                <span className="flex w-full items-center gap-2 text-sm font-extrabold text-ink">
+                  <SendHorizonal className={`h-4 w-4 ${active ? 'text-amber' : 'text-muted'}`} />
+                  {value ? '开启提醒' : '关闭提醒'}
+                </span>
+                <span className="text-[11px] leading-snug text-muted">
+                  {value ? '每条新投稿都会推送一条文本提醒' : '投稿仍会进入审核队列，但不推送机器人消息'}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </Field>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field label="AppID" required error={errorOf('appId')} hint="QQ 开放平台机器人管理端的 AppID">
+          <Input
+            value={form.appId}
+            maxLength={64}
+            onChange={(event) => setForm({ ...form, appId: event.target.value })}
+            placeholder="例如 102xxxxxx"
+          />
+        </Field>
+        <Field label="AppSecret" required error={errorOf('appSecret')}>
+          <Input
+            type="password"
+            value={form.appSecret}
+            onChange={(event) => setForm({ ...form, appSecret: event.target.value })}
+            placeholder={hasAppSecret ? SECRET_PLACEHOLDER : '机器人管理端的 AppSecret'}
+          />
+        </Field>
+        <Field label="群 OpenID" error={errorOf('targets')} hint="群聊场景推送目标：机器人被拉入群后，从群消息事件的 group_openid 获取">
+          <Input
+            value={form.groupOpenId}
+            maxLength={64}
+            onChange={(event) => setForm({ ...form, groupOpenId: event.target.value })}
+            placeholder="例如 5D6xxxxxxxxxxxxxxxx"
+          />
+        </Field>
+        <Field label="频道子频道 ID" hint="频道场景推送目标（文字子频道 channel_id），与群 OpenID 至少填一个">
+          <Input
+            value={form.channelId}
+            maxLength={64}
+            onChange={(event) => setForm({ ...form, channelId: event.target.value })}
+            placeholder="例如 123456"
+          />
+        </Field>
+      </div>
+      <div className="rounded-xl border border-white/10 bg-white/[0.03] px-4 py-3 text-xs leading-relaxed text-muted">
+        通过 QQ 官方开放平台 API v2（api.bot.qq.com）发送主动消息：群主动消息受平台频控（未开启「机器人主动发言」的群会发送失败），频道发送要求机器人保持 WebSocket 在线。提醒为 best-effort，失败仅记录日志，不影响投稿提交。
+      </div>
+      <div className="flex items-center justify-end gap-2 border-t border-white/10 pt-4">
+        <Button
+          variant="ghost"
+          size="sm"
+          disabled={testing || saving}
+          icon={testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SendHorizonal className="h-3.5 w-3.5" />}
+          onClick={() => void sendTest()}
+        >
+          {testing ? '发送中…' : '测试发送'}
+        </Button>
+        <Button
+          variant="primary"
+          size="sm"
+          disabled={saving || testing}
           icon={saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           onClick={() => void save()}
         >

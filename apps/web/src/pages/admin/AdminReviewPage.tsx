@@ -29,13 +29,11 @@ import { changedDiffRows, groupDiff, siteDiff, type DiffRow } from '../../lib/di
 import { formatDateTime } from '../../lib/format';
 import { clearMetaCache, EMPTY_META, loadMeta } from '../../lib/meta';
 import {
-  groupFormFromGroup,
   groupFormFromPayload,
   groupPayloadFromForm,
   isGroupEntity,
   isSiteEntity,
   siteFormFromPayload,
-  siteFormFromSite,
   sitePayloadFromForm,
   submissionSummary,
   validateGroupForm,
@@ -196,20 +194,13 @@ function ReviewDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
       .then((result) => {
         if (!alive) return;
         setDetail(result);
+        // 表单一律以投稿 payload（用户提交的新信息）初始化：
+        // UPDATE 模式的线上旧数据 target 仅用于差异对比，绝不能回填表单，
+        // 否则管理员看到旧信息、diff 恒为空，通过审核还会把旧数据写回（用户修改被丢弃）
         if (result.item.entityType === 'GROUP') {
-          const target = isGroupEntity(result.target) ? result.target : null;
-          setGroupForm(
-            result.item.mode === 'UPDATE' && target
-              ? groupFormFromGroup(target)
-              : groupFormFromPayload(result.item.payload),
-          );
+          setGroupForm(groupFormFromPayload(result.item.payload));
         } else {
-          const target = isSiteEntity(result.target) ? result.target : null;
-          setSiteForm(
-            result.item.mode === 'UPDATE' && target
-              ? siteFormFromSite(target)
-              : siteFormFromPayload(result.item.payload),
-          );
+          setSiteForm(siteFormFromPayload(result.item.payload));
         }
       })
       .catch(() => {

@@ -7,6 +7,7 @@ import {
   Flag,
   CloudCog,
   Layers,
+  LayoutDashboard,
   Map,
   Tags,
   Users,
@@ -19,7 +20,8 @@ import { useAuth } from '../../lib/auth';
 import { buttonClass } from '../../components/Button';
 
 const ADMIN_NAV: { to: string; label: string; icon: LucideIcon; end?: boolean; permission?: Permission }[] = [
-  { to: '/admin', label: '审核台', icon: ClipboardCheck, end: true, permission: PERMISSIONS.REVIEW_VIEW },
+  { to: '/admin', label: '仪表盘', icon: LayoutDashboard, end: true },
+  { to: '/admin/review', label: '审核台', icon: ClipboardCheck, permission: PERMISSIONS.REVIEW_VIEW },
   { to: '/admin/reports', label: '举报管理', icon: Flag, permission: PERMISSIONS.REPORT_MANAGE },
   { to: '/admin/content', label: '内容管理', icon: Layers, permission: PERMISSIONS.CONTENT_MANAGE },
   { to: '/admin/activities', label: '活动管理', icon: CalendarDays, permission: PERMISSIONS.CONTENT_MANAGE },

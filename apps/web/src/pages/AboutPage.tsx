@@ -1,11 +1,9 @@
 import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Heart, PenSquare, ShieldCheck, UsersRound } from 'lucide-react';
+import { Heart, HeartHandshake, PenSquare, ShieldCheck, UsersRound, X } from 'lucide-react';
+import { loadMeta, readCachedMeta } from '../lib/meta';
 import SectionHeading from '../components/SectionHeading';
-
-// ICP 备案号由站长在此填入；为空时页脚不展示备案信息
-const ICP_NUMBER = '';
-const CONTACT_EMAIL = ''; // 站长联系方式，为空时不展示
 
 function PolicySection({
   icon,
@@ -28,6 +26,23 @@ function PolicySection({
 }
 
 export default function AboutPage() {
+  // 备案号/联系邮箱/赞助支持均在后台「站点信息」中配置，经 /api/meta 下发
+  const cached = readCachedMeta();
+  const [about, setAbout] = useState(cached?.about ?? null);
+  const [zoomQrcode, setZoomQrcode] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    void loadMeta().then((meta) => {
+      if (!cancelled) setAbout(meta.about);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const hasSponsor = Boolean(about?.sponsorNote || about?.sponsorQrcodeUrl);
+
   return (
     <div className="mx-auto w-full max-w-3xl space-y-6 px-4 py-8 sm:px-6 lg:py-10">
       <SectionHeading
@@ -70,20 +85,43 @@ export default function AboutPage() {
           <p>
             欢迎通过投稿功能贡献内容。若你有意参与本站的长期维护（审核、内容整理、开发），可通过下方联系方式与站长取得联系。
           </p>
-          {CONTACT_EMAIL ? (
+          {about?.contactEmail ? (
             <p>
               联系邮箱：
-              <a href={`mailto:${CONTACT_EMAIL}`} className="text-amber underline underline-offset-2">
-                {CONTACT_EMAIL}
+              <a href={`mailto:${about.contactEmail}`} className="text-amber underline underline-offset-2">
+                {about.contactEmail}
               </a>
             </p>
           ) : null}
         </PolicySection>
+
+        {hasSponsor ? (
+          <PolicySection icon={<HeartHandshake className="h-4 w-4 text-amber" />} title="赞助支持">
+            {about?.sponsorNote ? <p>{about.sponsorNote}</p> : null}
+            {about?.sponsorQrcodeUrl ? (
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={() => setZoomQrcode(true)}
+                  className="group block cursor-zoom-in"
+                  aria-label="查看赞赏码大图"
+                >
+                  <img
+                    src={about.sponsorQrcodeUrl}
+                    alt="赞赏码"
+                    className="h-44 w-44 border border-space-200 bg-white object-contain transition group-hover:opacity-90"
+                  />
+                </button>
+                <p className="mt-2 text-xs text-muted">点击图片可查看大图</p>
+              </div>
+            ) : null}
+          </PolicySection>
+        ) : null}
       </div>
 
       <p className="text-center text-xs text-muted">
         本页面内容遵循站内统一说明，具体以最新公示版本为准。
-        {ICP_NUMBER ? (
+        {about?.icpNumber ? (
           <span className="ml-2">
             <a
               href="https://beian.miit.gov.cn/"
@@ -91,7 +129,7 @@ export default function AboutPage() {
               rel="noopener noreferrer"
               className="underline underline-offset-2 hover:text-amber"
             >
-              {ICP_NUMBER}
+              {about.icpNumber}
             </a>
           </span>
         ) : null}
@@ -101,6 +139,31 @@ export default function AboutPage() {
           </Link>
         </span>
       </p>
+
+      {zoomQrcode && about?.sponsorQrcodeUrl ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-space-950/80 p-6"
+          onClick={() => setZoomQrcode(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="赞赏码大图"
+        >
+          <button
+            type="button"
+            className="absolute right-4 top-4 rounded-full border border-white/15 bg-space-900/80 p-2 text-ink transition hover:border-amber/50"
+            aria-label="关闭"
+            onClick={() => setZoomQrcode(false)}
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <img
+            src={about.sponsorQrcodeUrl}
+            alt="赞赏码"
+            className="max-h-[80vh] max-w-full border border-space-200 bg-white object-contain"
+            onClick={(event) => event.stopPropagation()}
+          />
+        </div>
+      ) : null}
     </div>
   );
 }

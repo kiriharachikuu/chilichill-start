@@ -3,6 +3,7 @@ import { REGIONS, type MetaResponse, type NavModule } from '@spaceport/shared';
 import { toTag } from '../lib/serialize';
 import { prisma } from '../prisma';
 import { getStoredRegistrationSettings } from '../services/registration-settings';
+import { getStoredSiteSettings } from '../services/site-settings';
 
 const MODULES: NavModule[] = [
   { key: 'groups', label: 'Q群导航', path: '/groups', icon: 'users', enabled: true },
@@ -16,7 +17,7 @@ export function metaRoutes(app: FastifyInstance) {
   app.get('/api/meta', { preHandler: [app.optionalAuthenticate] }, async (request) => {
     const canSeePending = request.user?.role === 'ADMIN' || request.user?.role === 'MODERATOR';
 
-    const [cityCounts, cities, groupTags, siteTags, groups, sites, galleryImages, pendingSubmissions, registrationSettings, regionGroupCounts, latestGroup, latestSite, latestImage] =
+    const [cityCounts, cities, groupTags, siteTags, groups, sites, galleryImages, pendingSubmissions, registrationSettings, siteSettings, regionGroupCounts, latestGroup, latestSite, latestImage] =
       await Promise.all([
       prisma.cityRegionRule.groupBy({ by: ['regionCode'], _count: { _all: true } }),
       prisma.cityRegionRule.findMany({
@@ -37,6 +38,8 @@ export function metaRoutes(app: FastifyInstance) {
         ? prisma.submission.count({ where: { status: 'PENDING' } })
         : Promise.resolve(0),
       getStoredRegistrationSettings(),
+      // 站点信息（备案号/联系邮箱/赞助支持），About 页展示
+      getStoredSiteSettings(),
       // 首页大区卡片展示真实群舱数（而非后台维护的城市规则数）
       prisma.group.groupBy({ by: ['regionCode'], where: { published: true }, _count: { _all: true } }),
       prisma.group.findFirst({ where: { published: true }, orderBy: { updatedAt: 'desc' }, select: { updatedAt: true } }),
@@ -77,6 +80,7 @@ export function metaRoutes(app: FastifyInstance) {
       },
       modules: MODULES,
       registration: { emailCodeRequired: registrationSettings.emailCodeRequired },
+      about: siteSettings,
     };
 
     return response;

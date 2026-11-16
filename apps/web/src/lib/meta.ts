@@ -1,4 +1,4 @@
-import { REGIONS, type MetaResponse } from '@spaceport/shared';
+import { REGIONS, SITE_SETTINGS_EMPTY, type MetaResponse } from '@spaceport/shared';
 import { api } from './api';
 
 export const EMPTY_META: MetaResponse = {
@@ -8,6 +8,7 @@ export const EMPTY_META: MetaResponse = {
   stats: { groups: 0, sites: 0, galleryImages: 0, pendingSubmissions: 0, latestContentAt: null },
   modules: [],
   registration: { emailCodeRequired: true },
+  about: SITE_SETTINGS_EMPTY,
 };
 
 function normalizeMeta(data: Partial<MetaResponse> | null | undefined): MetaResponse {
@@ -22,6 +23,7 @@ function normalizeMeta(data: Partial<MetaResponse> | null | undefined): MetaResp
     stats: { ...EMPTY_META.stats, ...data.stats },
     modules: data.modules ?? [],
     registration: data.registration ?? EMPTY_META.registration,
+    about: { ...EMPTY_META.about, ...data.about },
   };
 }
 

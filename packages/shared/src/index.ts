@@ -222,6 +222,41 @@ export interface Paginated<T> {
   pageSize: number;
 }
 
+// ===== 后台仪表盘（/api/admin/dashboard）=====
+export interface AdminDashboardStats {
+  pendingSubmissions: number;
+  totalSubmissions: number;
+  // 今日 0 点起的新增投稿数（服务器本地时区）
+  todaySubmissions: number;
+  approvedSubmissions: number;
+  rejectedSubmissions: number;
+  groups: number;
+  sites: number;
+  activities: number;
+  galleryImages: number;
+  galleryLikes: number;
+  galleryComments: number;
+  users: number;
+  pendingReports: number;
+}
+
+// 后台敏感操作审计条目（仪表盘「最近动态」展示用）
+export interface AdminAuditLogItem {
+  id: string;
+  actorNickname: string;
+  action: string;
+  targetType: string;
+  targetId: string | null;
+  createdAt: string;
+}
+
+export interface AdminDashboardResponse {
+  stats: AdminDashboardStats;
+  // 待审核队列里最新的几条投稿（点击进审核台处理）
+  recentSubmissions: Submission[];
+  recentAuditLogs: AdminAuditLogItem[];
+}
+
 export interface FacetItem {
   key: string;
   label: string;
@@ -262,6 +297,8 @@ export interface MetaResponse {
   };
   modules: NavModule[];
   registration: { emailCodeRequired: boolean };
+  // 站点信息（备案号/联系邮箱/赞助支持），About 页从 meta 读取，后台「站点信息」可改
+  about: SiteSettings;
 }
 
 export interface NavModule {
@@ -750,6 +787,77 @@ export interface RegistrationSettings {
 
 export const registrationSettingsSchema = z.object({
   emailCodeRequired: z.boolean({ error: '请选择注册是否需要邮箱验证码' }),
+});
+
+// 站点信息设置（About 页展示内容：备案号、联系邮箱、赞助支持，后台可改；均为可选，留空不展示）
+export interface SiteSettings {
+  icpNumber: string | null;
+  contactEmail: string | null;
+  sponsorNote: string | null;
+  sponsorQrcodeUrl: string | null;
+}
+
+export const SITE_SETTINGS_EMPTY: SiteSettings = {
+  icpNumber: null,
+  contactEmail: null,
+  sponsorNote: null,
+  sponsorQrcodeUrl: null,
+};
+
+const optionalTextField = (max: number, label: string) =>
+  z
+    .string()
+    .trim()
+    .max(max, `${label}最多 ${max} 个字`)
+    .optional()
+    .or(z.literal(''))
+    .nullable()
+    .transform((value) => (value ? value : null));
+
+export const siteSettingsSchema = z.object({
+  icpNumber: optionalTextField(60, '备案号'),
+  contactEmail: z
+    .string()
+    .trim()
+    .max(200, '联系邮箱过长')
+    .optional()
+    .or(z.literal(''))
+    .nullable()
+    .transform((value) => (value ? value : null))
+    .refine((value) => !value || /^\S+@\S+\.\S+$/.test(value), { message: '联系邮箱格式不正确' }),
+  sponsorNote: optionalTextField(200, '赞助说明'),
+  sponsorQrcodeUrl: z
+    .string()
+    .trim()
+    .max(1000, '赞赏码地址过长')
+    .optional()
+    .or(z.literal(''))
+    .nullable()
+    .transform((value) => (value ? value : null)),
+});
+
+// QQ 机器人提醒设置（用户投稿后通过 QQ 官方机器人推送提醒；AppSecret 读取时脱敏）
+export interface QQBotSettings {
+  appId: string;
+  appSecret: string; // 读取时脱敏：已配置时为 QQ_BOT_SECRET_KEEP
+  groupOpenId: string | null; // QQ 群聊的 openid（群场景推送目标）
+  channelId: string | null; // 频道文字子频道 ID（频道场景推送目标）
+  enabled: boolean;
+}
+
+export const QQ_BOT_SECRET_KEEP = '__KEEP__';
+
+export const qqBotSettingsSchema = z.object({
+  appId: z.string().trim().min(1, 'AppID 不能为空').max(64, 'AppID 过长'),
+  appSecret: z
+    .string()
+    .trim()
+    .min(1, 'AppSecret 不能为空')
+    .max(200, 'AppSecret 过长')
+    .or(z.literal(QQ_BOT_SECRET_KEEP)),
+  groupOpenId: optionalTextField(64, '群 OpenID'),
+  channelId: optionalTextField(64, '子频道 ID'),
+  enabled: z.boolean({ error: '请选择是否启用 QQ 机器人提醒' }),
 });
 
 // 后台操作审计日志（用户组调整等敏感操作）
