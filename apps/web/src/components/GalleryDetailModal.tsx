@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Flag, Heart, Loader2, MessageSquare, SendHorizontal, Trash2 } from 'lucide-react';
-import type { GalleryCommentItem, GalleryCommentListResponse, GalleryImage } from '@spaceport/shared';
+import {
+  spaceHref,
+  type GalleryCommentItem,
+  type GalleryCommentListResponse,
+  type GalleryImage,
+} from '@spaceport/shared';
 import { ApiError, api } from '../lib/api';
 import { formatDateTime, gradientFor, initialOf } from '../lib/format';
 import Button from './Button';
@@ -189,6 +195,31 @@ export default function GalleryDetailModal({
     }
   };
 
+  // 上传者信息块：有账号时整块可点击跳转到 TA 的个人空间
+  const uploaderBody = image ? (
+    <>
+      <div
+        className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden border border-white/10 text-xs font-black text-white ${gradientFor(image.uploader?.nickname ?? image.id)}`}
+      >
+        {image.uploader?.avatarUrl ? (
+          <img
+            src={image.uploader.avatarUrl}
+            alt=""
+            className="h-full w-full object-cover"
+          />
+        ) : (
+          initialOf(image.uploader?.nickname ?? '粉')
+        )}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-bold text-ink">
+          {image.uploader?.nickname ?? '粉丝投稿'}
+        </p>
+        <p className="text-[10px] text-muted">作品上传者</p>
+      </div>
+    </>
+  ) : null;
+
   return (
     <Modal
       open={Boolean(image)}
@@ -207,27 +238,16 @@ export default function GalleryDetailModal({
               className="max-h-[55vh] w-full border border-white/10 bg-space-50 object-contain"
             />
             <div className="mt-3 flex items-center justify-between gap-3 border border-white/10 bg-white/[0.02] px-3 py-2.5">
-              <div className="flex min-w-0 items-center gap-2.5">
-                <div
-                  className={`flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden border border-white/10 text-xs font-black text-white ${gradientFor(image.uploader?.nickname ?? image.id)}`}
+              {image.uploader ? (
+                <Link
+                  to={spaceHref(image.uploader.uid)}
+                  className="flex min-w-0 items-center gap-2.5 transition-opacity hover:opacity-80"
                 >
-                  {image.uploader?.avatarUrl ? (
-                    <img
-                      src={image.uploader.avatarUrl}
-                      alt=""
-                      className="h-full w-full object-cover"
-                    />
-                  ) : (
-                    initialOf(image.uploader?.nickname ?? '粉')
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-bold text-ink">
-                    {image.uploader?.nickname ?? '粉丝投稿'}
-                  </p>
-                  <p className="text-[10px] text-muted">作品上传者</p>
-                </div>
-              </div>
+                  {uploaderBody}
+                </Link>
+              ) : (
+                <div className="flex min-w-0 items-center gap-2.5">{uploaderBody}</div>
+              )}
               <GalleryLikeButton
                 liked={image.liked}
                 likeCount={image.likeCount}

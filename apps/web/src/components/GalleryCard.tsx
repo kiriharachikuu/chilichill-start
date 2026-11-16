@@ -1,6 +1,7 @@
 import { memo } from 'react';
+import { Link } from 'react-router-dom';
 import { MessageSquare } from 'lucide-react';
-import { GALLERY_MEDIA_TYPE_LABELS, type GalleryImage } from '@spaceport/shared';
+import { GALLERY_MEDIA_TYPE_LABELS, spaceHref, type GalleryImage } from '@spaceport/shared';
 import GalleryLikeButton from './GalleryLikeButton';
 
 interface GalleryCardProps {
@@ -54,9 +55,16 @@ const GalleryCard = memo(function GalleryCard({ image, likePending, onOpen, onTo
             <p className="truncate text-xs font-extrabold leading-tight text-ink">
               {image.title || '未命名作品'}
             </p>
-            <p className="mt-0.5 truncate text-[10px] text-muted">
-              {image.uploader ? `@${image.uploader.nickname}` : '粉丝投稿'}
-            </p>
+            {image.uploader ? (
+              <Link
+                to={spaceHref(image.uploader.uid)}
+                className="mt-0.5 block w-fit max-w-full truncate text-[10px] text-muted hover:text-amber"
+              >
+                @{image.uploader.nickname}
+              </Link>
+            ) : (
+              <p className="mt-0.5 truncate text-[10px] text-muted">粉丝投稿</p>
+            )}
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <span

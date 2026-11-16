@@ -225,11 +225,12 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             />
             <span>
               我已阅读并同意
-              <Link to="/about" className="text-amber underline underline-offset-2">
+              {/* 协议页是完整页面，弹窗不关会被 z-[80] 遮罩挡住；表单状态留在组件里，回来重开不丢 */}
+              <Link to="/about" onClick={onClose} className="text-amber underline underline-offset-2">
                 《用户协议》
               </Link>
               与
-              <Link to="/privacy" className="text-amber underline underline-offset-2">
+              <Link to="/privacy" onClick={onClose} className="text-amber underline underline-offset-2">
                 《隐私政策》
               </Link>
               {errors.agreed ? <span className="mt-1 block text-coral">{errors.agreed}</span> : null}

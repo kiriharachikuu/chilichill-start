@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { CalendarDays, Globe2, MapPin, Search, Sparkles, UsersRound } from 'lucide-react';
+import { CalendarDays, Globe2, Images, MapPin, Search, Sparkles, UsersRound } from 'lucide-react';
 import {
+  type GalleryImage,
   type Group,
   type Site,
   type SpaceResourceItem,
@@ -10,9 +11,13 @@ import {
 } from '@spaceport/shared';
 import { api } from '../lib/api';
 import { formatDateTime, gradientFor, initialOf } from '../lib/format';
+import { useGalleryInteractions } from '../lib/useGalleryInteractions';
 import Card from '../components/Card';
 import EmptyState from '../components/EmptyState';
+import GalleryCard from '../components/GalleryCard';
+import GalleryDetailModal from '../components/GalleryDetailModal';
 import GroupCard from '../components/GroupCard';
+import MasonryGrid from '../components/MasonryGrid';
 import Pagination from '../components/Pagination';
 import SiteCard from '../components/SiteCard';
 
@@ -20,6 +25,8 @@ const PAGE_SIZE = 12;
 
 export default function SpacePage() {
   const { uid } = useParams<{ uid: string }>();
+  const { likePendingId, resolveLike, toggleLike, handleCommentCountChange, reset } =
+    useGalleryInteractions();
   const [data, setData] = useState<SpaceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -28,6 +35,8 @@ export default function SpacePage() {
   const [items, setItems] = useState<SpaceResourceItem[]>([]);
   const [total, setTotal] = useState(0);
   const [itemsLoading, setItemsLoading] = useState(false);
+  const [selected, setSelected] = useState<GalleryImage | null>(null);
+  const [measured, setMeasured] = useState<Record<string, { width: number; height: number }>>({});
 
   useEffect(() => {
     let alive = true;
@@ -38,6 +47,8 @@ export default function SpacePage() {
     setPage(1);
     setItems([]);
     setTotal(0);
+    setSelected(null);
+    reset();
     api
       .get<SpaceResponse>(`/api/users/uid/${uid ?? ''}`)
       .then((result) => {
@@ -53,13 +64,14 @@ export default function SpacePage() {
     return () => {
       alive = false;
     };
-  }, [uid]);
+  }, [uid, reset]);
 
   // 内容类型分页签：只显示有内容的类型，后续新增音乐/画作时在此追加即可
-  const counts = data?.counts ?? { groups: 0, sites: 0 };
+  const counts = data?.counts ?? { groups: 0, sites: 0, gallery: 0 };
   const tabs = [
     { key: 'groups', label: '粉丝群', icon: UsersRound, count: counts.groups },
     { key: 'sites', label: '网站', icon: Globe2, count: counts.sites },
+    { key: 'gallery', label: '画廊', icon: Images, count: counts.gallery },
   ].filter((item) => item.count > 0);
   const activeTab = tab && tabs.some((item) => item.key === tab) ? tab : tabs[0]?.key ?? null;
 
@@ -68,7 +80,7 @@ export default function SpacePage() {
     if (!data || !activeTab) return;
     let alive = true;
     setItemsLoading(true);
-    const type = activeTab === 'groups' ? 'GROUP' : 'SITE';
+    const type = activeTab === 'groups' ? 'GROUP' : activeTab === 'sites' ? 'SITE' : 'GALLERY';
     api
       .get<SpaceResourcesResponse>(
         `/api/users/uid/${uid ?? ''}/resources?type=${type}&page=${page}&pageSize=${PAGE_SIZE}`,
@@ -100,6 +112,37 @@ export default function SpacePage() {
     setTotal(0);
     setItemsLoading(true);
   };
+
+  // 图片实际加载后上报真实尺寸，修正瀑布流占位高度
+  const handleMeasure = useCallback((id: string, width: number, height: number) => {
+    setMeasured((prev) => {
+      const current = prev[id];
+      if (current && current.width === width && current.height === height) {
+        return prev;
+      }
+      return { ...prev, [id]: { width, height } };
+    });
+  }, []);
+
+  const getAspectRatio = useCallback(
+    (image: GalleryImage): number | null => {
+      const actual = measured[image.id];
+      if (actual) {
+        return actual.width / actual.height;
+      }
+      if (image.imageWidth && image.imageHeight) {
+        return image.imageWidth / image.imageHeight;
+      }
+      return null;
+    },
+    [measured],
+  );
+
+  const displayedGalleryImages =
+    activeTab === 'gallery'
+      ? (items as GalleryImage[]).map((image) => ({ ...image, ...resolveLike(image) }))
+      : [];
+  const selectedView = selected ? { ...selected, ...resolveLike(selected) } : null;
 
   if (loading) {
     return (
@@ -242,6 +285,24 @@ export default function SpacePage() {
           </div>
           <Pagination page={page} total={total} pageSize={PAGE_SIZE} onChange={setPage} />
         </div>
+      ) : activeTab === 'gallery' ? (
+        <div className="space-y-4">
+          <MasonryGrid
+            items={displayedGalleryImages}
+            getId={(image) => image.id}
+            getAspectRatio={getAspectRatio}
+            renderItem={(image) => (
+              <GalleryCard
+                image={image}
+                likePending={likePendingId === image.id}
+                onOpen={setSelected}
+                onToggleLike={(target) => void toggleLike(target)}
+                onMeasure={handleMeasure}
+              />
+            )}
+          />
+          <Pagination page={page} total={total} pageSize={PAGE_SIZE} onChange={setPage} />
+        </div>
       ) : null}
 
       {tabs.length ? (
@@ -249,6 +310,14 @@ export default function SpacePage() {
           <Sparkles className="h-3.5 w-3.5" /> 以上内容由站长审核后收录，感谢每一位贡献者。
         </div>
       ) : null}
+
+      <GalleryDetailModal
+        image={selectedView}
+        likePending={selected ? likePendingId === selected.id : false}
+        onClose={() => setSelected(null)}
+        onToggleLike={(target) => void toggleLike(target)}
+        onCommentCountChange={handleCommentCountChange}
+      />
     </div>
   );
 }

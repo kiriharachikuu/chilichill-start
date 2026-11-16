@@ -1,29 +1,21 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Images, RefreshCw } from 'lucide-react';
-import type { GalleryImage, GalleryLikeState, GalleryListResponse } from '@spaceport/shared';
-import { api, ApiError } from '../lib/api';
-import { useAuth } from '../lib/auth';
+import type { GalleryImage, GalleryListResponse } from '@spaceport/shared';
+import { api } from '../lib/api';
 import EmptyState from '../components/EmptyState';
 import GalleryCard from '../components/GalleryCard';
 import GalleryDetailModal from '../components/GalleryDetailModal';
 import MasonryGrid from '../components/MasonryGrid';
 import Button from '../components/Button';
 import SectionHeading from '../components/SectionHeading';
-import { useLoginDialog } from '../components/LoginModal';
-import { useToast } from '../components/Toast';
+import { useGalleryInteractions } from '../lib/useGalleryInteractions';
 
 const PAGE_SIZE = 12;
 const SKELETON_HEIGHTS = [240, 320, 280, 360, 260, 300, 340, 240, 280, 320, 260, 300];
 
-interface LikeState {
-  liked: boolean;
-  likeCount: number;
-}
-
 export default function GalleryPage() {
-  const toast = useToast();
-  const { user } = useAuth();
-  const { openLogin } = useLoginDialog();
+  const { likePendingId, resolveLike, toggleLike, handleCommentCountChange, reset } =
+    useGalleryInteractions();
 
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [total, setTotal] = useState(0);
@@ -33,46 +25,44 @@ export default function GalleryPage() {
   const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
   const [selected, setSelected] = useState<GalleryImage | null>(null);
-  const [likePendingId, setLikePendingId] = useState<string | null>(null);
-  // 点赞/评论计数在页面内统一乐观维护，卡片与详情弹窗共享
-  const [likeStates, setLikeStates] = useState<Record<string, LikeState>>({});
-  const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
 
   const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
   const pageRef = useRef(1);
 
-  const fetchPage = useCallback(async (nextPage: number, replace: boolean) => {
-    if (loadingRef.current) return;
-    loadingRef.current = true;
-    if (replace) {
-      setInitialLoading(true);
-    } else {
-      setLoadingMore(true);
-    }
-    setFailed(false);
-    try {
-      const res = await api.get<GalleryListResponse>('/api/gallery', {
-        page: nextPage,
-        pageSize: PAGE_SIZE,
-      });
-      setImages((prev) => (replace ? res.items : [...prev, ...res.items]));
-      setTotal(res.total);
-      setPage(res.page);
-      pageRef.current = res.page;
-      setHasMore(res.hasMore);
+  const fetchPage = useCallback(
+    async (nextPage: number, replace: boolean) => {
+      if (loadingRef.current) return;
+      loadingRef.current = true;
       if (replace) {
-        setLikeStates({});
-        setCommentCounts({});
+        setInitialLoading(true);
+      } else {
+        setLoadingMore(true);
       }
-    } catch {
-      setFailed(true);
-    } finally {
-      loadingRef.current = false;
-      setInitialLoading(false);
-      setLoadingMore(false);
-    }
-  }, []);
+      setFailed(false);
+      try {
+        const res = await api.get<GalleryListResponse>('/api/gallery', {
+          page: nextPage,
+          pageSize: PAGE_SIZE,
+        });
+        setImages((prev) => (replace ? res.items : [...prev, ...res.items]));
+        setTotal(res.total);
+        setPage(res.page);
+        pageRef.current = res.page;
+        setHasMore(res.hasMore);
+        if (replace) {
+          reset();
+        }
+      } catch {
+        setFailed(true);
+      } finally {
+        loadingRef.current = false;
+        setInitialLoading(false);
+        setLoadingMore(false);
+      }
+    },
+    [reset],
+  );
 
   useEffect(() => {
     void fetchPage(1, true);
@@ -93,47 +83,6 @@ export default function GalleryPage() {
     observer.observe(node);
     return () => observer.disconnect();
   }, [hasMore, page, fetchPage]);
-
-  const resolveLike = useCallback(
-    (image: GalleryImage): LikeState =>
-      likeStates[image.id] ?? { liked: image.liked, likeCount: image.likeCount },
-    [likeStates],
-  );
-
-  // 点赞 toggle：乐观更新，失败回滚并提示
-  const toggleLike = useCallback(
-    async (image: GalleryImage) => {
-      if (!user) {
-        openLogin();
-        return;
-      }
-      if (likePendingId) return;
-      const current = resolveLike(image);
-      const next: LikeState = {
-        liked: !current.liked,
-        likeCount: current.likeCount + (current.liked ? -1 : 1),
-      };
-      setLikeStates((prev) => ({ ...prev, [image.id]: next }));
-      setLikePendingId(image.id);
-      try {
-        const res = await api.post<GalleryLikeState>(`/api/gallery/${image.id}/like`);
-        setLikeStates((prev) => ({
-          ...prev,
-          [image.id]: { liked: res.liked, likeCount: res.likeCount },
-        }));
-      } catch (error) {
-        setLikeStates((prev) => ({ ...prev, [image.id]: current }));
-        toast.error(error instanceof ApiError ? error.message : '操作失败，请稍后再试');
-      } finally {
-        setLikePendingId(null);
-      }
-    },
-    [user, likePendingId, resolveLike, openLogin, toast],
-  );
-
-  const handleCommentCountChange = useCallback((imageId: string, count: number) => {
-    setCommentCounts((prev) => ({ ...prev, [imageId]: count }));
-  }, []);
 
   // 图片实际加载后上报真实尺寸，修正瀑布流占位高度
   const [measured, setMeasured] = useState<Record<string, { width: number; height: number }>>({});

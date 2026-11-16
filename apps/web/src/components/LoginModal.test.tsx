@@ -56,11 +56,12 @@ afterEach(() => {
 
 async function renderLoginModal(open: boolean) {
   // ToastProvider 也从当前模块图动态获取：resetModules 后 ToastContext 是全新对象，
-  // 若混用首图的静态 ToastProvider，LoginModal 内的 useToast 会读不到上下文
-  const [{ LoginDialogProvider }, { ToastProvider }] = await Promise.all([
-    import('./LoginModal'),
-    import('./Toast'),
-  ]);
+  // 若混用首图的静态 ToastProvider，LoginModal 内的 useToast 会读不到上下文。
+  // 注意必须串行 await：Node 22.14 的 require(esm) 加载器在并发加载同一批外部依赖时
+  // 存在竞态（getModuleJobForRequire 读到 module 未就绪的 job，报
+  // "Cannot read properties of undefined (reading 'getStatus')"），并发 import 会随机崩溃。
+  const { LoginDialogProvider } = await import('./LoginModal');
+  const { ToastProvider } = await import('./Toast');
   const setLoginOpen = vi.fn();
   render(
     <ToastProvider>
@@ -163,6 +164,31 @@ describe('LoginModal', () => {
     const user = userEvent.setup();
 
     await user.click(screen.getByRole('button', { name: '关闭' }));
+
+    expect(setLoginOpen).toHaveBeenCalledWith(false);
+  });
+
+  it('点击协议链接时关闭弹窗，避免跳转后的协议页被遮罩挡住', async () => {
+    // MemoryRouter 必须与 LoginModal 同一模块图动态导入：resetModules 后 react-router-dom
+    // 会重新求值，静态导入的 Router context 与 Link 所用 context 不是同一个对象。
+    // 同 renderLoginModal：串行导入，规避 Node 22.14 require(esm) 的加载器竞态
+    const { LoginDialogProvider } = await import('./LoginModal');
+    const { ToastProvider } = await import('./Toast');
+    const { MemoryRouter } = await import('react-router-dom');
+    const setLoginOpen = vi.fn();
+    render(
+      <MemoryRouter>
+        <ToastProvider>
+          <LoginDialogProvider loginOpen={true} setLoginOpen={setLoginOpen}>
+            <div>页面宿主</div>
+          </LoginDialogProvider>
+        </ToastProvider>
+      </MemoryRouter>,
+    );
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('button', { name: '注册' }));
+    await user.click(screen.getByRole('link', { name: '《隐私政策》' }));
 
     expect(setLoginOpen).toHaveBeenCalledWith(false);
   });

@@ -192,11 +192,12 @@ export interface SpaceResponse {
   counts: {
     groups: number;
     sites: number;
+    gallery: number;
   };
 }
 
-export type SpaceResourceType = 'GROUP' | 'SITE';
-export type SpaceResourceItem = Group | Site;
+export type SpaceResourceType = 'GROUP' | 'SITE' | 'GALLERY';
+export type SpaceResourceItem = Group | Site | GalleryImage;
 export type SpaceResourcesResponse = Paginated<SpaceResourceItem>;
 
 export interface Submission {
