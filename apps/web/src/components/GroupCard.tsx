@@ -117,12 +117,12 @@ export default function GroupCard({ group }: { group: Group }) {
               </Button>
             ) : null}
             {method.kind === 'LINK' && group.joinUrl ? (
-              <a
-                href={externalRedirectHref(group.joinUrl)}
+              <Link
+                to={externalRedirectHref(group.joinUrl)}
                 className={buttonClass({ variant: 'secondary', size: 'sm' })}
               >
                 加入群舱 <ExternalLink className="h-3.5 w-3.5" />
-              </a>
+              </Link>
             ) : null}
             {method.kind === 'NONE' ? (
               <span className="text-xs text-muted">入群方式待补充</span>

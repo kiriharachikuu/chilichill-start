@@ -263,7 +263,7 @@ export default function HomePage() {
           <SectionHeading
             eyebrow="Featured Sites"
             title="精选站点"
-            description="粉丝自制的小游戏、工具与测试站，均经过站长试航。"
+            description="粉丝自制的小游戏、工具与测试站，均经过运营团队试航。"
             action={
               <Link to="/sites" className={buttonClass({ variant: 'ghost', size: 'sm' })}>
                 浏览站点 <ArrowRight className="h-4 w-4" />
@@ -290,7 +290,7 @@ export default function HomePage() {
                 </p>
                 <h2 className="text-xl font-black text-ink sm:text-2xl">有想分享的群或站点？</h2>
                 <p className="mt-2 text-sm leading-relaxed text-muted">
-                  提交后信号会进入审核队列，站长校准分类并确认内容健康后，就会出现在对应舱段。修改线上内容同样需要一次审核，原内容不会提前变动。
+                  提交后信号会进入审核队列，运营团队校准分类并确认内容健康后，就会出现在对应舱段。修改线上内容同样需要一次审核，原内容不会提前变动。
                 </p>
               </div>
               <div className="flex flex-wrap gap-3">

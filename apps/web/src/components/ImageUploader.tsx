@@ -9,7 +9,8 @@ const MAX_SIZE = 5 * 1024 * 1024;
 interface ImageUploaderProps {
   value: string | null;
   onChange: (url: string | null) => void;
-  variant?: 'cover' | 'square';
+  /** square: 方形预览（头像）；banner: 宽幅低高度预览（空间头图）；cover: 全宽预览 */
+  variant?: 'cover' | 'square' | 'banner';
   label?: string;
   hint?: string;
 }
@@ -79,7 +80,7 @@ export default function ImageUploader({
       {value ? (
         <div
           className={`relative overflow-hidden rounded-xl border border-white/10 bg-space-900/60 ${
-            variant === 'square' ? 'h-40 w-40' : 'h-40 w-full'
+            variant === 'square' ? 'h-40 w-40' : variant === 'banner' ? 'h-28 w-full' : 'h-40 w-full'
           }`}
         >
           <img
@@ -101,7 +102,7 @@ export default function ImageUploader({
           onClick={() => inputRef.current?.click()}
           disabled={uploading}
           className={`group flex w-full flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-white/15 bg-white/[0.03] px-4 py-6 text-muted transition hover:border-amber/40 hover:bg-white/[0.06] disabled:opacity-60 ${
-            variant === 'square' ? 'h-40 w-40' : 'h-40'
+            variant === 'square' ? 'h-40 w-40' : variant === 'banner' ? 'h-28' : 'h-40'
           }`}
         >
           {uploading ? (

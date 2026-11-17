@@ -308,25 +308,6 @@
         background-image: radial-gradient(#3a3a44 2px, transparent 2.5px);
         background-size: 13px 12px;
       }
-      /* 中央 logo：横向光束 */
-      .boot-beam {
-        position: absolute;
-        left: 0;
-        right: 0;
-        top: calc(43% - 52px);
-        height: 10px;
-        z-index: 11;
-        pointer-events: none;
-        background: linear-gradient(
-          to bottom,
-          transparent,
-          rgba(96, 158, 233, 0.14) 35%,
-          rgba(141, 186, 241, 0.45) 50%,
-          rgba(96, 158, 233, 0.14) 65%,
-          transparent
-        );
-        box-shadow: 0 0 30px 8px rgba(96, 158, 233, 0.16);
-      }
       .boot-logo {
         position: absolute;
         left: 50%;
@@ -459,16 +440,10 @@
         font-size: 10px;
         letter-spacing: 1px;
       }
-      /* 移动端收敛：隐藏两侧 HUD，保留中央与底栏（对齐 vo.qq.com 移动策略） */
+      /* 移动端：保留中央与底栏，两侧 HUD 文字压缩呈现（矮视口下另行隐藏易重叠项） */
       .boot-frame { display: none; }
       @media (max-width: 767px) {
-        .boot-tags,
-        .boot-logs,
-        .boot-panel,
-        .boot-alert,
-        .boot-copy,
         .boot-rect,
-        .boot-beam,
         .boot-footer-right {
           display: none;
         }
@@ -490,8 +465,34 @@
         .boot-frame i.f2 { right: 0; top: 0; border-left: 0; border-bottom: 0; }
         .boot-frame i.f3 { left: 0; bottom: 0; border-right: 0; border-top: 0; }
         .boot-frame i.f4 { right: 0; bottom: 0; border-left: 0; border-top: 0; }
+        /* 两侧 HUD 文字压缩排版（左侧日志裁剪至 logo 上方为止） */
+        .boot-tags { top: 3.5%; gap: 8px; height: 16px; }
+        .boot-tags i { width: 4px; height: 3px; }
+        .boot-tags span { font-size: 9px; }
+        .boot-panel { top: 3.5%; width: 30%; min-width: 0; }
+        .boot-panel-dash { height: 2px; }
+        .boot-panel-dots { height: 22px; margin: 8px 0 0 38%; }
+        .boot-panel-dots-sm { height: 10px; margin: 5px 0 0 74%; }
+        .boot-panel-status { margin-top: 8px; font-size: 9px; }
+        .boot-logs { width: 60%; font-size: 8px; line-height: 1.5; }
+        .boot-logs-top { top: 9%; max-height: 52px; }
+        .boot-logs-mid { top: 20%; max-height: 74px; }
+        .boot-log-cn { font-size: 10px; }
+        .boot-alert { top: 66%; right: 3%; }
+        .boot-alert i { width: 24px; margin-top: 3px; }
+        .boot-alert .t1 { font-size: 7px; }
+        .boot-alert .t2 { font-size: 9px; }
+        .boot-copy { top: 71.5%; width: 58%; min-width: 0; font-size: 8.5px; }
         .boot-logo { top: 50%; }
         .boot-footer { height: 72px; }
+      }
+      /* 矮视口（手机横屏）：纵向空间不足，隐藏会与中央 logo 重叠的区块 */
+      @media (max-width: 767px) and (max-height: 479px) {
+        .boot-logs,
+        .boot-alert,
+        .boot-copy {
+          display: none;
+        }
       }
       /* 无障碍：偏好减弱动效时立即呈现完整静态状态 */
       @media (prefers-reduced-motion: reduce) {
@@ -576,7 +577,6 @@
         <div class="boot-rect boot-hud">
           <i class="r1"></i><i class="r2"></i><i class="r3"></i><i class="r4"></i><i class="r5"></i>
         </div>
-        <div class="boot-beam"></div>
         <div class="boot-logo">
           <img src="/logo.png" alt="" />
           <h1 class="boot-title">厚嘴唇空间站</h1>
@@ -599,6 +599,19 @@
       </div>
       <div class="boot-scanlines"></div>
     </div>
+
+    <!-- 直达重定向确认页（地址栏 / 新标签打开 /redirect?target=...）不播启动动画：
+         HTML 解析阶段同步移除 boot 层，先于任何绘制与闪烁；
+         React 侧 BootController 检测不到 #boot-screen 节点时会自动跳过结束流程 -->
+    <script>
+      (function () {
+        var path = window.location.pathname;
+        if (path === '/redirect' || path === '/redirect/') {
+          var boot = document.getElementById('boot-screen');
+          if (boot && boot.parentNode) boot.parentNode.removeChild(boot);
+        }
+      })();
+    </script>
 
     <script type="module" src="/src/main.tsx"></script>
   </body>

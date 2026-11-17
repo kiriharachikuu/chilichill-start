@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { Check, Loader2 } from 'lucide-react';
 import { spaceHref } from '@spaceport/shared';
 import { api } from '../lib/api';
@@ -17,6 +18,7 @@ export default function ProfileEditor() {
 
   const [nickname, setNickname] = useState('');
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [bannerUrl, setBannerUrl] = useState<string | null>(null);
   const [bio, setBio] = useState('');
   const [location, setLocation] = useState({ province: '', city: '' });
   const [saving, setSaving] = useState(false);
@@ -26,6 +28,7 @@ export default function ProfileEditor() {
     if (!user) return;
     setNickname(user.nickname);
     setAvatarUrl(user.avatarUrl ?? null);
+    setBannerUrl(user.bannerUrl ?? null);
     setBio(user.bio ?? '');
     setLocation({ province: user.province ?? '', city: user.city ?? '' });
   }, [user?.id]);
@@ -44,6 +47,7 @@ export default function ProfileEditor() {
       await api.patch('/api/users/me', {
         nickname: nickname.trim(),
         avatarUrl,
+        bannerUrl,
         bio: bio.trim(),
         province: location.province || null,
         city: location.city || null,
@@ -67,9 +71,9 @@ export default function ProfileEditor() {
           <p className="mt-1 text-xs text-muted">
             昵称、头像与自我介绍会展示在你的
             {user.uid != null ? (
-              <a href={spaceHref(user.uid)} className="mx-0.5 text-amber underline-offset-2 hover:underline">
+              <Link to={spaceHref(user.uid)} className="mx-0.5 text-amber underline-offset-2 hover:underline">
                 个人空间
-              </a>
+              </Link>
             ) : (
               '个人空间'
             )}
@@ -81,7 +85,17 @@ export default function ProfileEditor() {
         </Button>
       </div>
 
-      <div className="mt-5 flex flex-col gap-5 lg:flex-row">
+      <div className="mt-5 space-y-6">
+        <Field label="空间头图（选填）">
+          <ImageUploader
+            value={bannerUrl}
+            onChange={(url) => setBannerUrl(url)}
+            variant="banner"
+            hint="展示在个人空间顶部，支持 JPG/PNG/WebP，建议 1600×400 宽幅图片"
+          />
+        </Field>
+
+        <div className="flex flex-col gap-6 lg:flex-row">
         <div className="shrink-0">
           <ImageUploader
             value={avatarUrl}
@@ -92,7 +106,7 @@ export default function ProfileEditor() {
           />
         </div>
 
-        <div className="grid flex-1 gap-4 sm:grid-cols-2">
+        <div className="flex flex-1 flex-col gap-4">
           <Field label="昵称" htmlFor="profile-nickname">
             <input
               id="profile-nickname"
@@ -104,9 +118,9 @@ export default function ProfileEditor() {
             />
           </Field>
           <Field label="地区（选填）">
-            <CityPicker value={location} onChange={setLocation} />
+            <CityPicker value={location} onChange={setLocation} compact />
           </Field>
-          <Field label="自我介绍" htmlFor="profile-bio" className="sm:col-span-2">
+          <Field label="自我介绍" htmlFor="profile-bio">
             <textarea
               id="profile-bio"
               className={`${inputClass} min-h-[76px] resize-y`}
@@ -117,6 +131,7 @@ export default function ProfileEditor() {
             />
             <p className="mt-1 text-right text-[11px] text-muted/70">{bio.length}/200</p>
           </Field>
+        </div>
         </div>
       </div>
     </Card>

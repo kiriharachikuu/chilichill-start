@@ -108,7 +108,7 @@ export default function ActivitiesPage() {
       ) : (
         <EmptyState
           title="活动档案暂时空白"
-          description="还没有已上架的活动，站长上架后会第一时间出现在这里。"
+          description="还没有已上架的活动，运营团队上架后会第一时间出现在这里。"
         />
       )}
     </div>

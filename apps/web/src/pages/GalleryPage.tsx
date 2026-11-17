@@ -1,16 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { Images, RefreshCw } from 'lucide-react';
+import { ArrowUp, Images, RefreshCw } from 'lucide-react';
 import type { GalleryImage, GalleryListResponse } from '@spaceport/shared';
 import { api } from '../lib/api';
 import EmptyState from '../components/EmptyState';
 import GalleryCard from '../components/GalleryCard';
 import GalleryDetailModal from '../components/GalleryDetailModal';
 import MasonryGrid from '../components/MasonryGrid';
+import Pagination from '../components/Pagination';
 import Button from '../components/Button';
 import SectionHeading from '../components/SectionHeading';
 import { useGalleryInteractions } from '../lib/useGalleryInteractions';
 
-const PAGE_SIZE = 12;
+const PAGE_SIZE = 35;
 const SKELETON_HEIGHTS = [240, 320, 280, 360, 260, 300, 340, 240, 280, 320, 260, 300];
 
 export default function GalleryPage() {
@@ -20,69 +21,73 @@ export default function GalleryPage() {
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(false);
   const [initialLoading, setInitialLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
   const [failed, setFailed] = useState(false);
   const [selected, setSelected] = useState<GalleryImage | null>(null);
+  const [showTop, setShowTop] = useState(false);
 
-  const sentinelRef = useRef<HTMLDivElement | null>(null);
   const loadingRef = useRef(false);
-  const pageRef = useRef(1);
+  const listTopRef = useRef<HTMLDivElement | null>(null);
 
   const fetchPage = useCallback(
-    async (nextPage: number, replace: boolean) => {
+    async (nextPage: number) => {
       if (loadingRef.current) return;
       loadingRef.current = true;
-      if (replace) {
-        setInitialLoading(true);
-      } else {
-        setLoadingMore(true);
-      }
+      setInitialLoading(true);
       setFailed(false);
       try {
         const res = await api.get<GalleryListResponse>('/api/gallery', {
           page: nextPage,
           pageSize: PAGE_SIZE,
         });
-        setImages((prev) => (replace ? res.items : [...prev, ...res.items]));
+        setImages(res.items);
         setTotal(res.total);
         setPage(res.page);
-        pageRef.current = res.page;
-        setHasMore(res.hasMore);
-        if (replace) {
-          reset();
-        }
+        reset();
       } catch {
         setFailed(true);
       } finally {
         loadingRef.current = false;
         setInitialLoading(false);
-        setLoadingMore(false);
       }
     },
     [reset],
   );
 
   useEffect(() => {
-    void fetchPage(1, true);
+    void fetchPage(1);
   }, [fetchPage]);
 
-  // 无限滚动：哨兵元素进入视口附近时加载下一页
+  // 翻页后回到列表顶部
+  const handlePageChange = useCallback(
+    (nextPage: number) => {
+      void fetchPage(nextPage);
+      listTopRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    },
+    [fetchPage],
+  );
+
+  // 滚过约一屏后显示右下角返回顶部按钮；
+  // footer 顶边进入按钮区域时自动抬升到 footer 上方，避免遮挡 footer 文字
+  const topBtnRef = useRef<HTMLButtonElement | null>(null);
   useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(
-      (entries) => {
-        if (entries[0]?.isIntersecting && hasMore && !loadingRef.current) {
-          void fetchPage(page + 1, false);
-        }
-      },
-      { rootMargin: '600px 0px' },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, [hasMore, page, fetchPage]);
+    const update = () => {
+      setShowTop(window.scrollY > 480);
+      const btn = topBtnRef.current;
+      if (!btn) return;
+      const footer = document.querySelector('footer');
+      const footerTop = footer?.getBoundingClientRect().top ?? Number.POSITIVE_INFINITY;
+      // 按钮底边默认距视口 24px；与 footer 重叠时抬到 footer 上方 8px
+      btn.style.bottom = `${Math.max(24, window.innerHeight - footerTop + 8)}px`;
+    };
+    update();
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, []);
 
   // 图片实际加载后上报真实尺寸，修正瀑布流占位高度
   const [measured, setMeasured] = useState<Record<string, { width: number; height: number }>>({});
@@ -121,16 +126,31 @@ export default function GalleryPage() {
         description="这里收藏着粉丝们为 ChiliChill 创作的绘画与设计，欢迎喜欢与评论"
       />
 
-      <div className="mt-6 flex flex-wrap items-center justify-between gap-3">
-        <p className="text-xs text-muted">
-          共 <span className="font-mono font-bold text-ink">{total}</span> 件作品
-        </p>
+      <div
+        ref={listTopRef}
+        className="mb-6 mt-6 flex flex-wrap items-center justify-between gap-3 scroll-mt-16"
+      >
+        {total > PAGE_SIZE ? (
+          <Pagination
+            flush
+            navFirst
+            page={page}
+            total={total}
+            pageSize={PAGE_SIZE}
+            onChange={handlePageChange}
+            label="件作品"
+          />
+        ) : (
+          <p className="text-xs text-muted">
+            共 <span className="font-mono font-bold text-ink">{total}</span> 件作品
+          </p>
+        )}
         <div className="flex items-center gap-2">
           <Button
             variant="ghost"
             size="sm"
             icon={<RefreshCw className="h-3.5 w-3.5" />}
-            onClick={() => void fetchPage(1, true)}
+            onClick={() => void fetchPage(page)}
           >
             刷新
           </Button>
@@ -161,7 +181,7 @@ export default function GalleryPage() {
           title="画廊加载失败"
           description="网络似乎出了点问题，稍后再试试吧"
           action={
-            <Button variant="secondary" size="sm" onClick={() => void fetchPage(1, true)}>
+            <Button variant="secondary" size="sm" onClick={() => void fetchPage(1)}>
               重试
             </Button>
           }
@@ -170,7 +190,7 @@ export default function GalleryPage() {
         <EmptyState
           icon={Images}
           title="画廊还没有作品"
-          description="站长正在筹备第一批展品，敬请期待"
+          description="运营团队正在筹备第一批展品，敬请期待"
         />
       ) : (
         <>
@@ -188,26 +208,16 @@ export default function GalleryPage() {
               />
             )}
           />
-          <div ref={sentinelRef} className="h-px" />
-          <div className="py-6 text-center">
-            {loadingMore ? (
-              <p className="inline-flex items-center gap-2 text-xs text-muted">
-                <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                正在加载更多作品…
-              </p>
-            ) : hasMore ? (
-              <button
-                type="button"
-                onClick={() => void fetchPage(page + 1, false)}
-                className="text-xs font-bold text-muted underline-offset-4 hover:text-amber hover:underline"
-              >
-                加载更多
-              </button>
-            ) : (
-              <p className="text-xs text-muted">
-                已经到底啦 · 共 <span className="font-mono">{images.length}</span> 件作品
-              </p>
-            )}
+          <div className="mt-4 flex">
+            <Pagination
+              flush
+              navFirst
+              page={page}
+              total={total}
+              pageSize={PAGE_SIZE}
+              onChange={handlePageChange}
+              label="件作品"
+            />
           </div>
         </>
       )}
@@ -219,6 +229,18 @@ export default function GalleryPage() {
         onToggleLike={(target) => void toggleLike(target)}
         onCommentCountChange={handleCommentCountChange}
       />
+
+      <button
+        type="button"
+        ref={topBtnRef}
+        onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+        aria-label="返回顶部"
+        className={`fixed right-6 z-30 flex h-11 w-11 items-center justify-center rounded-lg border border-space-200 bg-white text-ink shadow-lg shadow-space-950/10 transition hover:border-amber hover:text-amber ${
+          showTop ? 'translate-y-0 opacity-100' : 'pointer-events-none translate-y-2 opacity-0'
+        }`}
+      >
+        <ArrowUp className="h-5 w-5" />
+      </button>
     </div>
   );
 }

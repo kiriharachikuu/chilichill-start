@@ -10,6 +10,7 @@ export interface AuthUser {
   email: string;
   nickname: string;
   avatarUrl: string | null;
+  bannerUrl: string | null;
   bio: string | null;
   province: string | null;
   city: string | null;

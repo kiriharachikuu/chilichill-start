@@ -79,6 +79,7 @@ export function seoRoutes(app: FastifyInstance) {
         changefreq: 'weekly',
       })),
       { loc: `${base}/about`, priority: '0.5', changefreq: 'monthly' },
+      { loc: `${base}/terms`, priority: '0.3', changefreq: 'monthly' },
       { loc: `${base}/privacy`, priority: '0.3', changefreq: 'monthly' },
     ];
 

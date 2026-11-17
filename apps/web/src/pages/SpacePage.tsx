@@ -181,22 +181,31 @@ export default function SpacePage() {
     <div className="mx-auto w-full max-w-6xl space-y-10 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
       <Card hover={false} className="overflow-hidden" padded={false}>
         <div
-          className="h-24 w-full sm:h-28"
-          style={{ backgroundImage: gradientFor(user.nickname) }}
-        />
-        <div className="-mt-12 px-6 pb-6 sm:px-8">
-          <div className="flex flex-wrap items-end gap-4">
-            <div
-              className="flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-white/15 text-3xl font-semibold text-ink shadow-lg shadow-space-950/40"
-              style={{ backgroundImage: gradientFor(user.nickname) }}
-            >
+          className="relative h-36 w-full sm:h-48"
+          style={user.bannerUrl ? undefined : { backgroundImage: gradientFor(user.nickname) }}
+        >
+          {user.bannerUrl ? (
+            <img
+              src={user.bannerUrl}
+              alt="个人空间头图"
+              className="absolute inset-0 h-full w-full object-cover"
+            />
+          ) : (
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(255,255,255,0.18),transparent_55%)]" />
+          )}
+          {/* 底部渐变过渡，让头图与信息区衔接更自然 */}
+          <div className="absolute inset-x-0 bottom-0 h-14 bg-gradient-to-t from-space-950/55 to-transparent" />
+        </div>
+        <div className="relative px-6 pb-6 sm:px-8">
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+            <div className="-mt-12 flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-3xl border border-space-200 bg-white text-3xl font-semibold text-ink shadow-lg shadow-space-950/40">
               {user.avatarUrl ? (
                 <img src={user.avatarUrl} alt={`${user.nickname} 的头像`} className="h-full w-full object-cover" />
               ) : (
                 initialOf(user.nickname)
               )}
             </div>
-            <div className="min-w-0 flex-1 pb-1">
+            <div className="min-w-0 flex-1 pb-1 pt-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-2xl font-bold text-ink">{user.nickname}</h1>
                 <span className="rounded-full border border-amber/30 bg-amber/10 px-2.5 py-0.5 font-mono text-xs text-amber">
@@ -307,7 +316,7 @@ export default function SpacePage() {
 
       {tabs.length ? (
         <div className="flex items-center gap-2 text-xs text-muted/70">
-          <Sparkles className="h-3.5 w-3.5" /> 以上内容由站长审核后收录，感谢每一位贡献者。
+          <Sparkles className="h-3.5 w-3.5" /> 以上内容由运营团队审核后收录，感谢每一位贡献者。
         </div>
       ) : null}
 

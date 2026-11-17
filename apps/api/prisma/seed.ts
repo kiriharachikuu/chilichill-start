@@ -30,7 +30,7 @@ const USERS: UserSeed[] = [
     id: 'seed-admin',
     uid: 100001,
     email: 'admin@spaceport.dev',
-    nickname: '站长',
+    nickname: '运营团队',
     password: 'Admin123!',
     role: 'ADMIN',
     bio: 'ChiliChill 粉丝导航站维护者，负责收录与审核各类资源。',
@@ -584,18 +584,29 @@ interface GallerySeed {
 }
 
 // 画廊示例作品（图片为本地静态资源，站长可在后台上传替换）
-const GALLERY_IMAGES: GallerySeed[] = [
-  { id: 'seed-gallery-01', imageUrl: '/media/gallery/art-01.jpg', title: '舞台上的辣椒星光', createdAt: '2026-11-14T20:00:00+08:00', demoLiked: true },
-  { id: 'seed-gallery-02', imageUrl: '/media/gallery/art-02.jpg', title: '宇航员与小红椒', createdAt: '2026-11-13T20:00:00+08:00' },
-  { id: 'seed-gallery-03', imageUrl: '/media/gallery/art-03.jpg', title: '黑胶火箭升空', createdAt: '2026-11-12T20:00:00+08:00', demoLiked: true },
-  { id: 'seed-gallery-04', imageUrl: '/media/gallery/art-04.jpg', title: '雨夜听歌的窗边', createdAt: '2026-11-11T20:00:00+08:00' },
-  { id: 'seed-gallery-05', imageUrl: '/media/gallery/art-05.jpg', title: '列车上的巡演手记', createdAt: '2026-11-10T20:00:00+08:00' },
-  { id: 'seed-gallery-06', imageUrl: '/media/gallery/art-06.jpg', title: '辣椒霓虹招牌', createdAt: '2026-11-09T20:00:00+08:00', demoLiked: true },
-  { id: 'seed-gallery-07', imageUrl: '/media/gallery/art-07.jpg', title: '纸艺空间站', createdAt: '2026-11-08T20:00:00+08:00' },
-  { id: 'seed-gallery-08', imageUrl: '/media/gallery/art-08.jpg', title: '黄昏音乐节全景', createdAt: '2026-11-07T20:00:00+08:00' },
-  { id: 'seed-gallery-09', imageUrl: '/media/gallery/art-09.jpg', title: '像素天台演出', createdAt: '2026-11-06T20:00:00+08:00' },
-  { id: 'seed-gallery-10', imageUrl: '/media/gallery/art-10.jpg', title: '辣椒花束明信片', createdAt: '2026-11-05T20:00:00+08:00' },
+const GALLERY_TITLES = [
+  '舞台上的辣椒星光',
+  '宇航员与小红椒',
+  '黑胶火箭升空',
+  '雨夜听歌的窗边',
+  '列车上的巡演手记',
+  '辣椒霓虹招牌',
+  '纸艺空间站',
+  '黄昏音乐节全景',
+  '像素天台演出',
+  '辣椒花束明信片',
 ];
+const GALLERY_BASE_TIME = new Date('2026-11-14T20:00:00+08:00').getTime();
+const GALLERY_DAY_MS = 24 * 60 * 60 * 1000;
+
+// 生成 42 条示例投稿（前端单页展示 35 张，确保能看到分页效果），图片循环复用静态资源
+const GALLERY_IMAGES: GallerySeed[] = Array.from({ length: 42 }, (_, index) => ({
+  id: `seed-gallery-${String(index + 1).padStart(2, '0')}`,
+  imageUrl: `/media/gallery/art-${String((index % GALLERY_TITLES.length) + 1).padStart(2, '0')}.jpg`,
+  title: `${GALLERY_TITLES[index % GALLERY_TITLES.length]} #${index + 1}`,
+  createdAt: new Date(GALLERY_BASE_TIME - index * GALLERY_DAY_MS).toISOString(),
+  demoLiked: index % 4 === 0,
+}));
 
 async function seedGallery() {
   for (const item of GALLERY_IMAGES) {

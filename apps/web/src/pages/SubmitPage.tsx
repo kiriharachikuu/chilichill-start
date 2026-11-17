@@ -93,7 +93,7 @@ export default function SubmitPage() {
           payload: result.payload,
         });
         setSuccess(true);
-        toast.success('群信号已发送，等待站长审核');
+        toast.success('群信号已发送，等待运营团队审核');
       } catch (error) {
         setServerError(error instanceof ApiError ? error.message : '提交失败，请稍后再试');
       } finally {
@@ -134,7 +134,7 @@ export default function SubmitPage() {
         payload: result.payload,
       });
       setSuccess(true);
-      toast.success('站点信号已发送，等待站长审核');
+      toast.success('站点信号已发送，等待运营团队审核');
     } catch (error) {
       setServerError(error instanceof ApiError ? error.message : '提交失败，请稍后再试');
     } finally {
@@ -151,12 +151,12 @@ export default function SubmitPage() {
           </div>
           <p className="text-[11px] uppercase tracking-[0.3em] text-mint/80">Signal Received</p>
           <h1 className="mt-2 text-2xl font-semibold text-ink">
-            {tab === 'GALLERY' ? '作品已进入审核队列' : '信号已发送，等待站长审核'}
+            {tab === 'GALLERY' ? '作品已进入审核队列' : '信号已发送，等待运营团队审核'}
           </h1>
           <p className="mx-auto mt-3 max-w-md text-sm leading-relaxed text-muted">
             {tab === 'GALLERY'
               ? '作品已经进入审核队列。审核组会检查作品类型、画质与标签，通过后就会出现在粉丝画廊。你可以在「我的投稿」查看进度。'
-              : '投稿已经进入审核队列。站长会校准分类与内容，通常 1-2 日内完成。你可以在「我的投稿」查看进度和驳回原因。'}
+              : '投稿已经进入审核队列。运营团队会校准分类与内容，通常 1-2 日内完成。你可以在「我的投稿」查看进度和驳回原因。'}
           </p>
           <div className="mt-7 flex flex-wrap justify-center gap-3">
             {tab === 'GALLERY' ? (
@@ -298,7 +298,7 @@ export default function SubmitPage() {
 
           <Card hover={false} className="bg-gradient-to-br from-aurora/[0.08] to-transparent">
             <p className="text-xs leading-relaxed text-muted">
-              贴心的站长会在审核时帮你修正分类、标签与格式，不用担心一次填不完美。若被驳回，你会看到具体原因，并可修改后重新提交。
+              贴心的运营团队会在审核时帮你修正分类、标签与格式，不用担心一次填不完美。若被驳回，你会看到具体原因，并可修改后重新提交。
             </p>
           </Card>
         </div>

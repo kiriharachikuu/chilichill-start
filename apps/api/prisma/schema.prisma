@@ -20,6 +20,8 @@ model User {
   email        String       @unique
   nickname     String
   avatarUrl    String?
+  // 个人空间顶部背景头图（B 站空间风格），无值时前端回退渐变色
+  bannerUrl    String?
   bio          String?
   province     String?
   city         String?

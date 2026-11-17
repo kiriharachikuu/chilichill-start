@@ -181,6 +181,7 @@ export interface UserProfile {
   uid: number;
   nickname: string;
   avatarUrl: string | null;
+  bannerUrl: string | null;
   bio: string | null;
   province: string | null;
   city: string | null;
@@ -473,10 +474,11 @@ export const submissionCreateSchema = z
   });
 export type SubmissionCreateInput = z.infer<typeof submissionCreateSchema>;
 
-// 个人资料修改：昵称、头像、自我介绍、地区（省→市，复用城市选择器数据）
+// 个人资料修改：昵称、头像、空间头图、自我介绍、地区（省→市，复用城市选择器数据）
 export const profileUpdateSchema = z.object({
   nickname: z.string().trim().min(1, '昵称不能为空').max(20, '昵称最多 20 个字').optional(),
   avatarUrl: z.string().trim().max(300).optional().nullable(),
+  bannerUrl: z.string().trim().max(300).optional().nullable(),
   bio: z.string().trim().max(200, '自我介绍最多 200 个字').optional().nullable(),
   province: z.string().trim().max(30).optional().nullable(),
   city: z.string().trim().max(30).optional().nullable(),
@@ -536,6 +538,32 @@ export interface GalleryLikeState {
   liked: boolean;
   likeCount: number;
 }
+
+// “收到的互动”：他人对当前用户发布的画廊作品产生的点赞与评论
+export interface ReceivedInteractionImage {
+  id: string;
+  imageUrl: string;
+  title: string | null;
+}
+
+export interface ReceivedLikeItem {
+  id: string;
+  createdAt: string;
+  user: PublicUploader | null;
+  image: ReceivedInteractionImage;
+}
+
+export interface ReceivedLikeListResponse extends Paginated<ReceivedLikeItem> {}
+
+export interface ReceivedCommentItem {
+  id: string;
+  content: string;
+  createdAt: string;
+  user: PublicUploader | null;
+  image: ReceivedInteractionImage | null;
+}
+
+export interface ReceivedCommentListResponse extends Paginated<ReceivedCommentItem> {}
 
 export const galleryPayloadSchema = z.object({
   imageUrl: z.string().trim().min(1, '请上传图片').max(1000, '图片地址过长'),
@@ -795,14 +823,14 @@ export interface SiteSettings {
   icpNumber: string | null;
   contactEmail: string | null;
   sponsorNote: string | null;
-  sponsorQrcodeUrl: string | null;
+  sponsorImages: string[];
 }
 
 export const SITE_SETTINGS_EMPTY: SiteSettings = {
   icpNumber: null,
   contactEmail: null,
   sponsorNote: null,
-  sponsorQrcodeUrl: null,
+  sponsorImages: [],
 };
 
 const optionalTextField = (max: number, label: string) =>
@@ -827,14 +855,13 @@ export const siteSettingsSchema = z.object({
     .transform((value) => (value ? value : null))
     .refine((value) => !value || /^\S+@\S+\.\S+$/.test(value), { message: '联系邮箱格式不正确' }),
   sponsorNote: optionalTextField(200, '赞助说明'),
-  sponsorQrcodeUrl: z
-    .string()
-    .trim()
-    .max(1000, '赞赏码地址过长')
+  // 赞助图片：最多 10 张（赞赏码、收款截图等），元素去空格后过滤空串
+  sponsorImages: z
+    .array(z.string().trim().max(1000, '赞助图片地址过长'))
+    .max(10, '最多上传 10 张赞助图片')
     .optional()
-    .or(z.literal(''))
     .nullable()
-    .transform((value) => (value ? value : null)),
+    .transform((value) => (value ?? []).filter((url) => url.length > 0)),
 });
 
 // QQ 机器人推送分类型开关（旧存储数据缺省视为全开，保持既有行为）

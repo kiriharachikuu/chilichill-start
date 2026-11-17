@@ -72,26 +72,6 @@ export default function AppShell() {
     });
   }, [user, location.pathname, loginOpen, refresh, toast]);
 
-  // 路由切换过渡：顶部信号扫描线（首挂载不触发，由首屏 boot 层负责）
-  // 外链中转页（/redirect）只是弹出跳转确认页、没有数据加载，跳过扫描线，
-  // 避免点击"加入群舱"等外链时误触发全局加载动画
-  const [scan, setScan] = useState(false);
-  const prevPathRef = useRef<string | null>(null);
-
-  useEffect(() => {
-    const isExternalRedirect = location.pathname === '/redirect';
-    if (prevPathRef.current !== null && prevPathRef.current !== location.pathname && !isExternalRedirect) {
-      setScan(true);
-    }
-    prevPathRef.current = location.pathname;
-  }, [location.pathname]);
-
-  useEffect(() => {
-    if (!scan) return;
-    const timer = window.setTimeout(() => setScan(false), 650);
-    return () => window.clearTimeout(timer);
-  }, [scan]);
-
   useEffect(() => {
     if (!mobileOpen) return;
     const handleKey = (event: KeyboardEvent) => {
@@ -109,9 +89,6 @@ export default function AppShell() {
   return (
     <LoginDialogProvider loginOpen={loginOpen} setLoginOpen={setLoginOpen}>
       <div className="min-h-screen bg-space-50 text-ink">
-      <div className={`route-scan${scan ? ' is-active' : ''}`} aria-hidden="true">
-        <span className="route-scan-runner" />
-      </div>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[230px] flex-col border-r-2 border-ink bg-white lg:flex">
         <Link to="/" className="flex items-center gap-3 border-b border-ink px-5 py-5">
           <img src="/logo.png" alt="厚嘴唇空间站" className="h-10 w-10 shrink-0 object-contain" />
@@ -269,6 +246,9 @@ export default function AppShell() {
               </span>
               <Link to="/about" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
                 关于本站
+              </Link>
+              <Link to="/terms" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
+                用户协议
               </Link>
               <Link to="/privacy" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
                 隐私政策

@@ -49,6 +49,7 @@ interface PublicUser {
   email: string;
   nickname: string;
   avatarUrl: string | null;
+  bannerUrl: string | null;
   bio: string | null;
   province: string | null;
   city: string | null;
@@ -62,6 +63,7 @@ function toPublicUser(user: PublicUser): PublicUser {
     email: user.email,
     nickname: user.nickname,
     avatarUrl: user.avatarUrl,
+    bannerUrl: user.bannerUrl,
     bio: user.bio,
     province: user.province,
     city: user.city,

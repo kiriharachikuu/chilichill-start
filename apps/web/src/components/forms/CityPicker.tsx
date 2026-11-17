@@ -26,6 +26,8 @@ interface CityPickerProps {
   value: CityPickerValue;
   onChange: (next: CityPickerValue) => void;
   error?: string;
+  /** 紧凑模式：省去标题行、归属徽章与嵌套卡片，用于个人资料等选填场景 */
+  compact?: boolean;
 }
 
 function cityKey(name: string): string {
@@ -51,6 +53,7 @@ function PickerLevel({
   value,
   options,
   disabled,
+  showClear = true,
   onChange,
   onClear,
 }: {
@@ -59,6 +62,7 @@ function PickerLevel({
   value: string;
   options: { value: string; label: string }[];
   disabled?: boolean;
+  showClear?: boolean;
   onChange: (next: string) => void;
   onClear: () => void;
 }) {
@@ -81,7 +85,7 @@ function PickerLevel({
         </select>
         <ChevronDown className="pointer-events-none absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted/60" />
       </div>
-      {value ? (
+      {showClear && value ? (
         <button
           type="button"
           aria-label={`清除${label}`}
@@ -96,7 +100,7 @@ function PickerLevel({
   );
 }
 
-export default function CityPicker({ value, onChange, error }: CityPickerProps) {
+export default function CityPicker({ value, onChange, error, compact = false }: CityPickerProps) {
   const [divisions, setDivisions] = useState<DivisionProvince[] | null>(null);
   const [loadError, setLoadError] = useState(false);
 
@@ -129,6 +133,53 @@ export default function CityPicker({ value, onChange, error }: CityPickerProps) 
   const region = provinceRegionCode(value.province);
   const cityLabel = (name: string) =>
     provinceObj && MUNICIPAL_CITY_NAMES.includes(name) ? `${provinceObj.name}${name}` : name;
+
+  if (compact) {
+    return (
+      <div>
+        {loadError ? (
+          <div className="flex items-center gap-2 py-1">
+            <p className="text-xs text-muted">区划数据加载失败</p>
+            <button
+              type="button"
+              onClick={load}
+              className="rounded-full border border-amber/40 bg-amber/10 px-3 py-1 text-xs text-amber transition hover:bg-amber/20"
+            >
+              重新加载
+            </button>
+          </div>
+        ) : !divisions ? (
+          <p className="py-1 text-xs text-muted">正在加载全国省市区数据…</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <PickerLevel
+              label="选择省份"
+              placeholder="选择省份"
+              value={value.province}
+              options={divisions.map((item) => ({ value: item.name, label: item.name }))}
+              showClear={false}
+              onChange={(province) => onChange({ province, city: '' })}
+              onClear={() => onChange({ province: '', city: '' })}
+            />
+            <PickerLevel
+              label="选择城市"
+              placeholder="选择城市"
+              value={value.city}
+              disabled={!provinceObj}
+              options={(provinceObj?.cities ?? []).map((item) => ({
+                value: item.name,
+                label: cityLabel(item.name),
+              }))}
+              showClear={false}
+              onChange={(city) => onChange({ ...value, city })}
+              onClear={() => onChange({ ...value, city: '' })}
+            />
+          </div>
+        )}
+        {error ? <p className="mt-1.5 text-xs text-coral">{error}</p> : null}
+      </div>
+    );
+  }
 
   return (
     <div>

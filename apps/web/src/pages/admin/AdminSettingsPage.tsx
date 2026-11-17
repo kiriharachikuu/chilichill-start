@@ -380,12 +380,12 @@ interface SiteForm {
   icpNumber: string;
   contactEmail: string;
   sponsorNote: string;
-  sponsorQrcodeUrl: string | null;
+  sponsorImages: string[];
 }
 
-const EMPTY_SITE: SiteForm = { icpNumber: '', contactEmail: '', sponsorNote: '', sponsorQrcodeUrl: null };
+const EMPTY_SITE: SiteForm = { icpNumber: '', contactEmail: '', sponsorNote: '', sponsorImages: [] };
 
-// 站点信息：About 页展示的备案号、联系邮箱与赞助支持（赞赏码），留空不展示
+// 站点信息：About 页展示的备案号、联系邮箱与赞助支持（多张赞助图片），留空不展示
 function SiteSettingsCard() {
   const toast = useToast();
   const [form, setForm] = useState<SiteForm>(EMPTY_SITE);
@@ -404,7 +404,7 @@ function SiteSettingsCard() {
         icpNumber: item.icpNumber ?? '',
         contactEmail: item.contactEmail ?? '',
         sponsorNote: item.sponsorNote ?? '',
-        sponsorQrcodeUrl: item.sponsorQrcodeUrl ?? null,
+        sponsorImages: item.sponsorImages ?? [],
       });
     } catch {
       setFailed(true);
@@ -435,7 +435,7 @@ function SiteSettingsCard() {
         icpNumber: form.icpNumber.trim(),
         contactEmail: form.contactEmail.trim(),
         sponsorNote: form.sponsorNote.trim(),
-        sponsorQrcodeUrl: form.sponsorQrcodeUrl,
+        sponsorImages: form.sponsorImages.filter((url) => url.trim().length > 0),
       });
       toast.success('站点信息已保存并生效');
       void fetchSettings();
@@ -495,18 +495,48 @@ function SiteSettingsCard() {
           value={form.sponsorNote}
           maxLength={200}
           onChange={(event) => setForm({ ...form, sponsorNote: event.target.value })}
-          placeholder="例如：服务器与域名维护需要成本，若本站对你有帮助，欢迎请站长喝杯奶茶～"
+          placeholder="例如：服务器与域名维护需要成本，若本站对你有帮助，欢迎请运营团队喝杯奶茶～"
         />
       </Field>
-      <Field label="赞赏码" hint="上传后在 About 页「赞助支持」板块展示，访客可点击放大">
-        <div className="w-44">
-          <ImageUploader
-            variant="square"
-            label=""
-            hint=""
-            value={form.sponsorQrcodeUrl}
-            onChange={(url) => setForm({ ...form, sponsorQrcodeUrl: url })}
-          />
+      <Field
+        label={`赞助图片（${form.sponsorImages.length}/10）`}
+        hint="最多 10 张，支持 png / jpg / jpeg / webp，单张不超过 5MB；上传后在 About 页「赞助支持」板块展示，访客可点击放大"
+      >
+        <div className="flex flex-wrap gap-4">
+          {form.sponsorImages.map((url, index) => (
+            <ImageUploader
+              key={`${index}-${url}`}
+              variant="square"
+              label={`图片 ${index + 1}`}
+              hint=""
+              value={url}
+              onChange={(next) =>
+                setForm((prev) => {
+                  const images = [...prev.sponsorImages];
+                  // 更换为空表示移除该张，其余保持顺序不变
+                  if (next) {
+                    images[index] = next;
+                  } else {
+                    images.splice(index, 1);
+                  }
+                  return { ...prev, sponsorImages: images };
+                })
+              }
+            />
+          ))}
+          {form.sponsorImages.length < 10 ? (
+            <ImageUploader
+              variant="square"
+              label="添加图片"
+              hint=""
+              value={null}
+              onChange={(url) => {
+                if (url) {
+                  setForm((prev) => ({ ...prev, sponsorImages: [...prev.sponsorImages, url] }));
+                }
+              }}
+            />
+          ) : null}
         </div>
       </Field>
       <div className="flex items-center justify-end border-t border-white/10 pt-4">

@@ -197,12 +197,12 @@ export default function GroupDetailPage() {
 
             <div className="flex flex-col gap-2 pt-2">
               {method.kind === 'LINK' && group.joinUrl ? (
-                <a
-                  href={externalRedirectHref(group.joinUrl)}
+                <Link
+                  to={externalRedirectHref(group.joinUrl)}
                   className={buttonClass({ variant: 'primary', size: 'md', fullWidth: true })}
                 >
                   加入群舱 <ExternalLink className="h-4 w-4" />
-                </a>
+                </Link>
               ) : null}
               {method.kind === 'QR' ? (
                 <Button
@@ -220,7 +220,7 @@ export default function GroupDetailPage() {
                 </Button>
               ) : null}
               {method.kind === 'NONE' ? (
-                <p className="text-center text-xs text-muted">入群方式待补充，欢迎向站长反馈</p>
+                <p className="text-center text-xs text-muted">入群方式待补充，欢迎向运营团队反馈</p>
               ) : null}
               {method.kind !== 'QR' && group.qrcodeUrl ? (
                 <Button

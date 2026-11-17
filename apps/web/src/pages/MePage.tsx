@@ -4,17 +4,23 @@ import {
   Clock3,
   Eye,
   Globe2,
+  Heart,
   Images,
   Inbox,
+  MessageSquare,
   Pencil,
   RefreshCw,
+  UserRound,
   UsersRound,
+  type LucideIcon,
 } from 'lucide-react';
 import {
   ENTITY_TYPE_LABELS,
   GALLERY_MEDIA_TYPE_LABELS,
   GROUP_TYPE_LABELS,
   formatLocation,
+  ReceivedCommentListResponse,
+  ReceivedLikeListResponse,
   type Group,
   type MetaResponse,
   type Paginated,
@@ -57,12 +63,36 @@ import SectionHeading from '../components/SectionHeading';
 import StatusBadge from '../components/StatusBadge';
 import { useToast } from '../components/Toast';
 
-const PAGE_SIZE = 10;
-const TABS: { key: 'ALL' | SubmissionStatus; label: string }[] = [
+const SUBMISSION_PAGE_SIZE = 10;
+const RECEIVED_PAGE_SIZE = 10;
+const SUBMISSION_TABS: { key: 'ALL' | SubmissionStatus; label: string }[] = [
   { key: 'ALL', label: '全部' },
   { key: 'PENDING', label: '待审核' },
   { key: 'APPROVED', label: '已通过' },
   { key: 'REJECTED', label: '已驳回' },
+];
+
+type ModuleKey = 'PROFILE' | 'SUBMISSIONS' | 'INTERACTIONS';
+
+const MODULES: { key: ModuleKey; label: string; icon: LucideIcon; description: string }[] = [
+  {
+    key: 'INTERACTIONS',
+    label: '点赞与评论',
+    icon: Heart,
+    description: '其他粉丝对你发布的画廊作品的点赞与评论都会汇总在这里。',
+  },
+  {
+    key: 'PROFILE',
+    label: '账号资料',
+    icon: UserRound,
+    description: '维护你在空间站的昵称、头像、坐标和自我介绍。',
+  },
+  {
+    key: 'SUBMISSIONS',
+    label: '审核进度',
+    icon: Inbox,
+    description: '追踪每一条信号的审核进度，被驳回的投稿可修改后重新发送。',
+  },
 ];
 
 interface SubmissionDetail {
@@ -78,6 +108,17 @@ function EntityIcon({ type }: { type: Submission['entityType'] }) {
     return <Images className="h-4 w-4 text-aurora" />;
   }
   return <Globe2 className="h-4 w-4 text-mint" />;
+}
+
+function UserAvatar({ nickname, avatarUrl, size = 'h-9 w-9' }: { nickname: string | null; avatarUrl: string | null; size?: string }) {
+  if (avatarUrl) {
+    return <img src={avatarUrl} alt={nickname ?? '用户头像'} className={`${size} shrink-0 rounded-full border border-white/10 object-cover`} />;
+  }
+  return (
+    <span className={`${size} flex shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-xs font-medium text-muted`}>
+      {(nickname ?? '友').slice(0, 1)}
+    </span>
+  );
 }
 
 interface DrawerProps {
@@ -176,7 +217,7 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
     try {
       if (current.status === 'REJECTED') {
         await api.post<{ item: Submission }>(`/api/submissions/${current.id}/resubmit`, { payload });
-        toast.success('修改已重新发送，等待站长审核');
+        toast.success('修改已重新发送，等待运营团队审核');
       } else {
         const targetId = current.targetId ?? detail?.target?.id;
         if (!targetId) {
@@ -251,7 +292,7 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
 
           {current.reviewNote ? (
             <div className="rounded-xl border border-coral/30 bg-coral/[0.08] px-4 py-3">
-              <p className="text-xs font-medium text-coral">站长留言</p>
+              <p className="text-xs font-medium text-coral">运营团队留言</p>
               <p className="mt-1.5 text-sm leading-relaxed text-ink/85">{current.reviewNote}</p>
             </div>
           ) : null}
@@ -338,7 +379,7 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
             <div className="space-y-4">
               <div className="rounded-xl border border-amber/25 bg-amber/[0.06] px-4 py-3 text-xs leading-relaxed text-amber/90">
                 {current.status === 'REJECTED'
-                  ? '根据站长留言调整内容后重新提交，会生成一条新的待审核信号。'
+                  ? '根据运营团队留言调整内容后重新提交，会生成一条新的待审核信号。'
                   : '这里是修改申请：审核通过后才会覆盖线上内容，原内容继续展示。'}
               </div>
 
@@ -386,8 +427,9 @@ function InfoRow({ label, value }: { label: string; value: string }) {
   );
 }
 
-export default function MePage() {
-  const { user, loading: authLoading } = useAuth();
+// ─── 模块一：审核进度 ──────────────────────────────────────────────────────
+
+function SubmissionsModule() {
   const [status, setStatus] = useState<'ALL' | SubmissionStatus>('ALL');
   const [page, setPage] = useState(1);
   const [data, setData] = useState<Paginated<Submission> | null>(null);
@@ -402,7 +444,6 @@ export default function MePage() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
     let alive = true;
     setLoading(true);
     setFailed(false);
@@ -410,7 +451,7 @@ export default function MePage() {
       .get<Paginated<Submission>>('/api/submissions/mine', {
         status: status === 'ALL' ? undefined : status,
         page,
-        pageSize: PAGE_SIZE,
+        pageSize: SUBMISSION_PAGE_SIZE,
       })
       .then((result) => {
         if (alive) setData(result);
@@ -426,33 +467,12 @@ export default function MePage() {
     return () => {
       alive = false;
     };
-  }, [user, status, page, reloadKey]);
-
-  if (authLoading) {
-    return <div className="h-64 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />;
-  }
-
-  if (!user) {
-    return <Navigate to={`/login?next=${encodeURIComponent('/me')}`} replace />;
-  }
+  }, [status, page, reloadKey]);
 
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
-      <SectionHeading
-        eyebrow="My Orbit"
-        title="我的投稿"
-        description="追踪每一条信号的审核进度。被驳回的投稿可以修改后重新发送，已通过的内容可以申请修改。"
-        action={
-          <Link to="/submit" className={buttonClass({ variant: 'primary', size: 'sm' })}>
-            继续投稿
-          </Link>
-        }
-      />
-
-      <ProfileEditor />
-
+    <section className="space-y-6">
       <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-1.5">
-        {TABS.map((tab) => (
+        {SUBMISSION_TABS.map((tab) => (
           <button
             key={tab.key}
             type="button"
@@ -475,7 +495,14 @@ export default function MePage() {
           >
             <RefreshCw className="h-3.5 w-3.5" /> 重试
           </button>
-        ) : null}
+        ) : (
+          <Link
+            to="/submit"
+            className={buttonClass({ variant: 'primary', size: 'sm', className: 'ml-auto' })}
+          >
+            继续投稿
+          </Link>
+        )}
       </div>
 
       {loading ? (
@@ -571,14 +598,14 @@ export default function MePage() {
           <Pagination
             page={page}
             total={data.total}
-            pageSize={PAGE_SIZE}
+            pageSize={SUBMISSION_PAGE_SIZE}
             onChange={(nextPage) => setPage(nextPage)}
           />
         </>
       ) : (
         <EmptyState
           title="还没有投递过信号"
-          description="把一个想分享的群或站点送入轨道，站长审核后就会出现在公开舱段。"
+          description="把一个想分享的群或站点送入轨道，运营团队审核后就会出现在公开舱段。"
           icon={Inbox}
           action={
             <Link to="/submit" className={buttonClass({ variant: 'primary', size: 'sm' })}>
@@ -594,6 +621,327 @@ export default function MePage() {
         onClose={() => setActive(null)}
         onDone={() => setReloadKey((key) => key + 1)}
       />
+    </section>
+  );
+}
+
+// ─── 模块二：收到的点赞与评论 ──────────────────────────────────────────────
+
+type ReceivedTab = 'LIKES' | 'COMMENTS';
+
+function ReceivedModule() {
+  const [tab, setTab] = useState<ReceivedTab>('LIKES');
+
+  // 点赞列表
+  const [likeData, setLikeData] = useState<ReceivedLikeListResponse | null>(null);
+  const [likePage, setLikePage] = useState(1);
+  const [likeLoading, setLikeLoading] = useState(true);
+  const [likeFailed, setLikeFailed] = useState(false);
+  const [likeReloadKey, setLikeReloadKey] = useState(0);
+
+  // 评论列表
+  const [commentData, setCommentData] = useState<ReceivedCommentListResponse | null>(null);
+  const [commentPage, setCommentPage] = useState(1);
+  const [commentLoading, setCommentLoading] = useState(true);
+  const [commentFailed, setCommentFailed] = useState(false);
+  const [commentReloadKey, setCommentReloadKey] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setLikeLoading(true);
+    setLikeFailed(false);
+    api
+      .get<ReceivedLikeListResponse>('/api/users/me/received-likes', {
+        page: likePage,
+        pageSize: RECEIVED_PAGE_SIZE,
+      })
+      .then((result) => {
+        if (alive) setLikeData(result);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setLikeFailed(true);
+        setLikeData(null);
+      })
+      .finally(() => {
+        if (alive) setLikeLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [likePage, likeReloadKey]);
+
+  useEffect(() => {
+    let alive = true;
+    setCommentLoading(true);
+    setCommentFailed(false);
+    api
+      .get<ReceivedCommentListResponse>('/api/users/me/received-comments', {
+        page: commentPage,
+        pageSize: RECEIVED_PAGE_SIZE,
+      })
+      .then((result) => {
+        if (alive) setCommentData(result);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setCommentFailed(true);
+        setCommentData(null);
+      })
+      .finally(() => {
+        if (alive) setCommentLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [commentPage, commentReloadKey]);
+
+  const switchTab = (next: ReceivedTab) => {
+    setTab(next);
+    setLikePage(1);
+    setCommentPage(1);
+  };
+
+  const likes = likeData?.items ?? [];
+  const comments = commentData?.items ?? [];
+
+  return (
+    <section className="space-y-6">
+      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-1.5">
+        <button
+          type="button"
+          onClick={() => switchTab('LIKES')}
+          className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm transition ${
+            tab === 'LIKES' ? 'bg-amber/15 font-medium text-amber' : 'text-muted hover:bg-white/[0.04] hover:text-ink'
+          }`}
+        >
+          <Heart className="h-3.5 w-3.5" /> 收到的点赞
+          {likeData ? <span className="font-mono text-xs opacity-80">{likeData.total}</span> : null}
+        </button>
+        <button
+          type="button"
+          onClick={() => switchTab('COMMENTS')}
+          className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm transition ${
+            tab === 'COMMENTS' ? 'bg-amber/15 font-medium text-amber' : 'text-muted hover:bg-white/[0.04] hover:text-ink'
+          }`}
+        >
+          <MessageSquare className="h-3.5 w-3.5" /> 收到的评论
+          {commentData ? <span className="font-mono text-xs opacity-80">{commentData.total}</span> : null}
+        </button>
+      </div>
+
+      {tab === 'LIKES' ? (
+        likeLoading ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            {Array.from({ length: 4 }).map((_, index) => (
+              <div key={index} className="h-24 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+            ))}
+          </div>
+        ) : likeFailed ? (
+          <EmptyState
+            title="暂时收不到信号"
+            description="没能读取收到的点赞，请稍后重试。"
+            icon={RefreshCw}
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setLikeReloadKey((key) => key + 1)}>
+                重试
+              </Button>
+            }
+          />
+        ) : likes.length ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {likes.map((item) => (
+                <Link key={item.id} to="/gallery" className="block">
+                  <Card className="flex items-center gap-3">
+                    {item.image.imageUrl ? (
+                      <img
+                        src={item.image.imageUrl}
+                        alt={item.image.title ?? '画廊作品'}
+                        loading="lazy"
+                        className="h-14 w-14 shrink-0 rounded-xl border border-white/10 object-cover"
+                      />
+                    ) : (
+                      <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                        <Images className="h-5 w-5 text-aurora" />
+                      </span>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <p className="flex items-center gap-1.5 text-sm text-ink">
+                        <Heart className="h-3.5 w-3.5 shrink-0 fill-coral text-coral" />
+                        <span className="font-medium">{item.user?.nickname ?? '匿名粉丝'}</span>
+                        <span className="text-muted">赞了你的作品</span>
+                      </p>
+                      <p className="mt-1 truncate text-xs text-muted">
+                        {item.image.title || '未命名作品'}
+                      </p>
+                      <p className="mt-1 text-[11px] text-muted/70">{formatDateTime(item.createdAt)}</p>
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+            <Pagination
+              page={likeData!.page}
+              total={likeData!.total}
+              pageSize={RECEIVED_PAGE_SIZE}
+              onChange={(nextPage) => setLikePage(nextPage)}
+            />
+          </>
+        ) : (
+          <EmptyState
+            title="还没有收到点赞"
+            description="去画廊发布你的作品，收获粉丝的喜欢吧。"
+            icon={Heart}
+            action={
+              <Link to="/gallery" className={buttonClass({ variant: 'primary', size: 'sm' })}>
+                去画廊逛逛
+              </Link>
+            }
+          />
+        )
+      ) : commentLoading ? (
+        <div className="space-y-3">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <div key={index} className="h-24 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+          ))}
+        </div>
+      ) : commentFailed ? (
+        <EmptyState
+          title="暂时收不到信号"
+          description="没能读取收到的评论，请稍后重试。"
+          icon={RefreshCw}
+          action={
+            <Button variant="secondary" size="sm" onClick={() => setCommentReloadKey((key) => key + 1)}>
+              重试
+            </Button>
+          }
+        />
+      ) : comments.length ? (
+        <>
+          <div className="space-y-3">
+            {comments.map((item) => (
+              <Link key={item.id} to="/gallery" className="block">
+                <Card className="flex items-start gap-3">
+                  <UserAvatar nickname={item.user?.nickname ?? null} avatarUrl={item.user?.avatarUrl ?? null} />
+                  <div className="min-w-0 flex-1">
+                    <p className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-sm">
+                      <span className="font-medium text-ink">{item.user?.nickname ?? '匿名粉丝'}</span>
+                      <span className="text-muted">评论了你的作品</span>
+                      <span className="max-w-[16rem] truncate text-amber">{item.image?.title || '未命名作品'}</span>
+                    </p>
+                    <p className="mt-1.5 break-all text-sm leading-relaxed text-ink/85">{item.content}</p>
+                    <p className="mt-1.5 text-[11px] text-muted/70">{formatDateTime(item.createdAt)}</p>
+                  </div>
+                  {item.image?.imageUrl ? (
+                    <img
+                      src={item.image.imageUrl}
+                      alt={item.image.title ?? '画廊作品'}
+                      loading="lazy"
+                      className="h-14 w-14 shrink-0 rounded-xl border border-white/10 object-cover"
+                    />
+                  ) : null}
+                </Card>
+              </Link>
+            ))}
+          </div>
+          <Pagination
+            page={commentData!.page}
+            total={commentData!.total}
+            pageSize={RECEIVED_PAGE_SIZE}
+            onChange={(nextPage) => setCommentPage(nextPage)}
+          />
+        </>
+      ) : (
+        <EmptyState
+          title="还没有收到评论"
+          description="去画廊发布你的作品，等待粉丝的回响吧。"
+          icon={MessageSquare}
+          action={
+            <Link to="/gallery" className={buttonClass({ variant: 'primary', size: 'sm' })}>
+              去画廊逛逛
+            </Link>
+          }
+        />
+      )}
+    </section>
+  );
+}
+
+// ─── 页面：三个独立模块 ─────────────────────────────────────────────────────
+
+export default function MePage() {
+  const { user, loading: authLoading } = useAuth();
+  // 进入页面默认展示「点赞与评论」模块
+  const [activeModule, setActiveModule] = useState<ModuleKey>('INTERACTIONS');
+  // 访问过的模块保持挂载（仅隐藏），切换回来时不丢失编辑中的草稿与列表状态
+  const [visited, setVisited] = useState<Record<ModuleKey, boolean>>({
+    PROFILE: false,
+    SUBMISSIONS: false,
+    INTERACTIONS: true,
+  });
+
+  if (authLoading) {
+    return <div className="h-64 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />;
+  }
+
+  if (!user) {
+    return <Navigate to={`/login?next=${encodeURIComponent('/me')}`} replace />;
+  }
+
+  const openModule = (key: ModuleKey) => {
+    setActiveModule(key);
+    setVisited((prev) => (prev[key] ? prev : { ...prev, [key]: true }));
+  };
+
+  return (
+    <div className="mx-auto w-full max-w-6xl space-y-8 px-4 py-8 sm:px-6 lg:px-8 lg:py-10">
+      <SectionHeading
+        eyebrow="My Orbit"
+        title="个人中心"
+        description="管理账号资料、追踪投稿审核进度，查看你收到的点赞与评论。"
+      />
+
+      <nav
+        aria-label="个人中心模块"
+        className="flex flex-wrap items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] p-1.5"
+      >
+        {MODULES.map((module) => {
+          const Icon = module.icon;
+          const isActive = activeModule === module.key;
+          return (
+            <button
+              key={module.key}
+              type="button"
+              onClick={() => openModule(module.key)}
+              aria-current={isActive ? 'page' : undefined}
+              className={`inline-flex items-center gap-1.5 rounded-xl px-4 py-2 text-sm transition ${
+                isActive ? 'bg-amber/15 font-medium text-amber' : 'text-muted hover:bg-white/[0.04] hover:text-ink'
+              }`}
+            >
+              <Icon className="h-4 w-4" /> {module.label}
+            </button>
+          );
+        })}
+      </nav>
+
+      <p className="-mt-2 text-sm text-muted">{MODULES.find((m) => m.key === activeModule)?.description}</p>
+
+      <div className={activeModule === 'PROFILE' ? '' : 'hidden'}>
+        <ProfileEditor />
+      </div>
+
+      {visited.SUBMISSIONS ? (
+        <div className={activeModule === 'SUBMISSIONS' ? '' : 'hidden'}>
+          <SubmissionsModule />
+        </div>
+      ) : null}
+
+      {visited.INTERACTIONS ? (
+        <div className={activeModule === 'INTERACTIONS' ? '' : 'hidden'}>
+          <ReceivedModule />
+        </div>
+      ) : null}
     </div>
   );
 }

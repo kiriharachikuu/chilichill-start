@@ -82,13 +82,13 @@ describe('ProtectedAdminRoute', () => {
     expect(screen.queryByText('login-page')).not.toBeInTheDocument();
   });
 
-  it('ADMIN 角色通过校验，渲染受保护子路由内容与站长文案横幅', () => {
+  it('ADMIN 角色通过校验，渲染受保护子路由内容与运营团队文案横幅', () => {
     authMock.user = makeUser('ADMIN');
 
     renderAdminRoutes('/admin');
 
     expect(screen.getByText('admin-content')).toBeInTheDocument();
-    expect(screen.getByText('已通过站长权限校验，当前处于控制舱')).toBeInTheDocument();
+    expect(screen.getByText('已通过运营团队权限校验，当前处于控制舱')).toBeInTheDocument();
   });
 
   it('MODERATOR 角色同样放行，横幅文案切换为审核组版本', () => {

@@ -35,13 +35,13 @@ export default function SiteCard({ site }: { site: Site }) {
       </div>
 
       <div className="flex flex-1 flex-col p-5">
-        <a
-          href={externalRedirectHref(site.url)}
+        <Link
+          to={externalRedirectHref(site.url)}
           className="flex items-start justify-between gap-2 text-base font-semibold text-ink transition hover:text-mint"
         >
           <span className="line-clamp-1">{site.title}</span>
           <ArrowUpRight className="mt-0.5 h-4 w-4 shrink-0 text-muted transition group-hover:text-mint" />
-        </a>
+        </Link>
         <p className="mt-2 line-clamp-3 min-h-[3.9rem] text-sm leading-relaxed text-muted">
           {site.description}
         </p>

@@ -59,7 +59,9 @@ export default {
       keyframes: {
         'fade-up': {
           '0%': { opacity: '0', transform: 'translateY(10px)' },
-          '100%': { opacity: '1', transform: 'translateY(0)' },
+          // 结束帧必须是 none 而不是 translateY(0)：fill-mode both 会保留结束帧的 transform，
+          // 非 none 的 transform 会让 <main> 成为 fixed 后代的定位基准，破坏弹层/悬浮按钮的视口定位
+          '100%': { opacity: '1', transform: 'none' },
         },
         'pulse-soft': {
           '0%, 100%': { opacity: '1' },
@@ -67,7 +69,10 @@ export default {
         },
       },
       animation: {
-        'fade-up': 'fade-up 0.36s ease-out both',
+        // 不能用 fill-mode both/forwards：Chrome 对填充中的结束帧 transform: none
+        // 仍按恒等矩阵处理，<main> 会持续成为 fixed 后代的定位基准。
+        // 动画结束后让属性回归无动画状态（transform 为 none），弹层/悬浮按钮定位才正确
+        'fade-up': 'fade-up 0.36s ease-out',
         'pulse-soft': 'pulse-soft 2.4s ease-in-out infinite',
       },
     },

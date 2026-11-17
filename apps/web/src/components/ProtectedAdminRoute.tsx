@@ -23,7 +23,7 @@ export default function ProtectedAdminRoute() {
       <EmptyState
         icon={ShieldAlert}
         title="权限不足 · 无法进入控制舱"
-        description="这里只对站长与审核组成员开放。你可以继续浏览群舱与站点，或使用相应账号登录。"
+        description="这里只对运营团队与审核组成员开放。你可以继续浏览群舱与站点，或使用相应账号登录。"
         action={
           <div className="flex flex-wrap justify-center gap-2">
             <Link to="/" className={buttonClass({ variant: 'primary', size: 'sm' })}>
@@ -43,7 +43,7 @@ export default function ProtectedAdminRoute() {
       <div className="mb-6 flex items-center gap-2 rounded-xl border border-mint/20 bg-mint/[0.06] px-4 py-2.5 text-xs text-mint">
         <ShieldCheck className="h-4 w-4" />
         {user.role === 'ADMIN'
-          ? '已通过站长权限校验，当前处于控制舱'
+          ? '已通过运营团队权限校验，当前处于控制舱'
           : '已通过审核组权限校验，当前仅开放审核相关功能'}
       </div>
       {/* 后台路由按需加载（React.lazy），加载期间展示骨架占位 */}

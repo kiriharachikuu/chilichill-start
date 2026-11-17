@@ -20,7 +20,7 @@ import { prisma } from '../prisma';
 
 const galleryQuerySchema = z.object({
   page: pageQuery,
-  pageSize: pageSizeQuery(12, 24),
+  pageSize: pageSizeQuery(35, 35),
 });
 
 const commentQuerySchema = z.object({
@@ -44,8 +44,8 @@ export function publicGalleryRoutes(app: FastifyInstance) {
   app.get('/api/gallery', { preHandler: [app.optionalAuthenticate] }, async (request) => {
     const query = galleryQuerySchema.parse(request.query ?? {});
     const { page, pageSize, skip, take } = pageParams(query.page, query.pageSize, {
-      pageSize: 12,
-      maxPageSize: 24,
+      pageSize: 35,
+      maxPageSize: 35,
     });
     const viewerId = request.user?.sub ?? null;
 

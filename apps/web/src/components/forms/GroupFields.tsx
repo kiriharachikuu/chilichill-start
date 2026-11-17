@@ -54,7 +54,7 @@ const TYPE_OPTIONS: {
   },
   {
     value: 'OTHER',
-    desc: '其他用途，由站长协助分类',
+    desc: '其他用途，由运营团队协助分类',
     icon: MoreHorizontal,
     tone: 'border-white/30 bg-white/10 text-ink/85',
   },
@@ -282,7 +282,7 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
             </div>
           ) : (
             <p className="rounded-xl border border-dashed border-white/12 bg-white/[0.02] px-3 py-3 text-xs text-muted">
-              标签池暂未送达，请稍后刷新重试，或联系站长补充。
+              标签池暂未送达，请稍后刷新重试，或联系运营团队补充。
             </p>
           )}
           {errors.tags ? <p className="mt-1.5 text-xs text-coral">{errors.tags}</p> : null}
@@ -293,7 +293,7 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
         <Field
           label="用途说明"
           error={errors.purpose}
-          hint="选填，简单说明这个群的用途，方便站长归类（120 字以内）"
+          hint="选填，简单说明这个群的用途，方便运营团队归类（120 字以内）"
         >
           <Textarea
             value={value.purpose}

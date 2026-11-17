@@ -11,12 +11,17 @@ function parseStoredSettings(value: string | null): SiteSettings {
     return DEFAULT_SETTINGS;
   }
   try {
-    const parsed = JSON.parse(value) as Partial<SiteSettings>;
+    const parsed = JSON.parse(value) as Partial<SiteSettings> & { sponsorQrcodeUrl?: unknown };
+    // 旧存储为单图 sponsorQrcodeUrl，自动迁移进 sponsorImages 数组
+    const legacyQrcode = typeof parsed.sponsorQrcodeUrl === 'string' && parsed.sponsorQrcodeUrl ? [parsed.sponsorQrcodeUrl] : [];
+    const images = Array.isArray(parsed.sponsorImages)
+      ? parsed.sponsorImages.filter((url): url is string => typeof url === 'string' && url.length > 0)
+      : [];
     return {
       icpNumber: typeof parsed.icpNumber === 'string' ? parsed.icpNumber : null,
       contactEmail: typeof parsed.contactEmail === 'string' ? parsed.contactEmail : null,
       sponsorNote: typeof parsed.sponsorNote === 'string' ? parsed.sponsorNote : null,
-      sponsorQrcodeUrl: typeof parsed.sponsorQrcodeUrl === 'string' ? parsed.sponsorQrcodeUrl : null,
+      sponsorImages: images.length > 0 ? images : legacyQrcode.slice(0, 10),
     };
   } catch {
     return DEFAULT_SETTINGS;

@@ -3,6 +3,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app';
 import { prisma } from '../src/prisma';
+import { invalidateSiteSettingsCache } from '../src/services/site-settings';
 
 // 站点信息设置（About 页备案号/联系邮箱/赞助支持）：
 // - GET/PUT 仅管理员可用，未登录 401、普通成员 403
@@ -12,7 +13,7 @@ import { prisma } from '../src/prisma';
 const ADMIN_EMAIL = 'site-admin@test.dev';
 const USER_EMAIL = 'site-user@test.dev';
 const PASSWORD = 'password-123';
-const EMPTY_ITEM = { icpNumber: null, contactEmail: null, sponsorNote: null, sponsorQrcodeUrl: null };
+const EMPTY_ITEM = { icpNumber: null, contactEmail: null, sponsorNote: null, sponsorImages: [] };
 
 let app: FastifyInstance;
 let adminToken: string;
@@ -99,7 +100,7 @@ describe('站点信息设置', () => {
         icpNumber: ' 粤ICP备2026000000号 ',
         contactEmail: 'admin@test.dev',
         sponsorNote: ' 服务器与域名维护需要成本，欢迎请站长喝杯奶茶 ',
-        sponsorQrcodeUrl: '/uploads/sponsor-qrcode.png',
+        sponsorImages: ['/uploads/sponsor-1.png', ' /uploads/sponsor-2.png '],
       },
       adminToken,
     );
@@ -108,7 +109,7 @@ describe('站点信息设置', () => {
       icpNumber: '粤ICP备2026000000号',
       contactEmail: 'admin@test.dev',
       sponsorNote: '服务器与域名维护需要成本，欢迎请站长喝杯奶茶',
-      sponsorQrcodeUrl: '/uploads/sponsor-qrcode.png',
+      sponsorImages: ['/uploads/sponsor-1.png', '/uploads/sponsor-2.png'],
     });
 
     const meta = await app.inject({ method: 'GET', url: '/api/meta' });
@@ -116,12 +117,58 @@ describe('站点信息设置', () => {
       icpNumber: '粤ICP备2026000000号',
       contactEmail: 'admin@test.dev',
       sponsorNote: '服务器与域名维护需要成本，欢迎请站长喝杯奶茶',
-      sponsorQrcodeUrl: '/uploads/sponsor-qrcode.png',
+      sponsorImages: ['/uploads/sponsor-1.png', '/uploads/sponsor-2.png'],
     });
   });
 
-  it('空串与未传字段归一化为 null', async () => {
-    const put = await putSite({ icpNumber: '', contactEmail: '', sponsorNote: '', sponsorQrcodeUrl: '' }, adminToken);
+  it('赞助图片最多 10 张，超出返回 400', async () => {
+    const images = Array.from({ length: 11 }, (_, index) => `/uploads/sponsor-${index}.png`);
+    const res = await putSite({ icpNumber: '', contactEmail: '', sponsorNote: '', sponsorImages: images }, adminToken);
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+  });
+
+  it('旧版单图 sponsorQrcodeUrl 存储自动迁移为 sponsorImages', async () => {
+    // 直接写入旧结构数据，模拟升级前的存量配置
+    await prisma.systemSetting.upsert({
+      where: { key: 'site' },
+      update: {
+        value: JSON.stringify({
+          icpNumber: null,
+          contactEmail: null,
+          sponsorNote: '旧数据赞助说明',
+          sponsorQrcodeUrl: '/uploads/legacy-qrcode.png',
+        }),
+      },
+      create: {
+        key: 'site',
+        value: JSON.stringify({
+          icpNumber: null,
+          contactEmail: null,
+          sponsorNote: '旧数据赞助说明',
+          sponsorQrcodeUrl: '/uploads/legacy-qrcode.png',
+        }),
+      },
+    });
+    // 之前用例已填充内存缓存，读取前先失效，确保拿到刚写入的旧结构数据
+    invalidateSiteSettingsCache();
+    const res = await getSite(adminToken);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().item).toEqual({
+      icpNumber: null,
+      contactEmail: null,
+      sponsorNote: '旧数据赞助说明',
+      sponsorImages: ['/uploads/legacy-qrcode.png'],
+    });
+    // 清理，避免影响后续用例
+    await prisma.systemSetting.delete({ where: { key: 'site' } });
+  });
+
+  it('空串与未传字段归一化为 null，赞助图片空元素被过滤', async () => {
+    const put = await putSite(
+      { icpNumber: '', contactEmail: '', sponsorNote: '', sponsorImages: ['', '  '] },
+      adminToken,
+    );
     expect(put.statusCode, put.body).toBe(200);
     expect(put.json().item).toEqual(EMPTY_ITEM);
   });

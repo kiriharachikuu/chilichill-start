@@ -222,7 +222,7 @@ export default function LoginPage() {
                 />
                 <span>
                   我已阅读并同意
-                  <Link to="/about" className="text-amber underline underline-offset-2" target="_blank">
+                  <Link to="/terms" className="text-amber underline underline-offset-2" target="_blank">
                     《用户协议》
                   </Link>
                   与
@@ -248,7 +248,7 @@ export default function LoginPage() {
 
         <p className="mt-4 text-center text-[11px] leading-relaxed text-muted/70">
           继续使用本站即表示你已阅读并同意
-          <Link to="/about" className="text-amber underline underline-offset-2">
+          <Link to="/terms" className="text-amber underline underline-offset-2">
             《用户协议》
           </Link>
           与

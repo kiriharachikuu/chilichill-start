@@ -226,7 +226,7 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
             <span>
               我已阅读并同意
               {/* 协议页是完整页面，弹窗不关会被 z-[80] 遮罩挡住；表单状态留在组件里，回来重开不丢 */}
-              <Link to="/about" onClick={onClose} className="text-amber underline underline-offset-2">
+              <Link to="/terms" onClick={onClose} className="text-amber underline underline-offset-2">
                 《用户协议》
               </Link>
               与
