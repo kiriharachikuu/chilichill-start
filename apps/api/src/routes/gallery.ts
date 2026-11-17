@@ -15,6 +15,7 @@ import {
   serializeGalleryImage,
 } from '../lib/serialize';
 import { requireUser } from '../plugins/auth';
+import { notifyCommentReportInBackground } from '../services/qq-bot/notify';
 import { prisma } from '../prisma';
 
 const galleryQuerySchema = z.object({
@@ -245,6 +246,16 @@ export function publicGalleryRoutes(app: FastifyInstance) {
             reason: body.reason,
           },
         });
+        // 推送审核提醒（best-effort，不阻塞响应）
+        notifyCommentReportInBackground(
+          {
+            reporterNickname: request.user?.nickname ?? '未知用户',
+            commentContent: comment.content,
+            commentUserNickname: comment.user?.nickname ?? null,
+            reason: body.reason,
+          },
+          request.log,
+        );
         return { item: { id: report.id, status: report.status } };
       } catch (error) {
         // 唯一约束：同一用户对同一评论重复举报

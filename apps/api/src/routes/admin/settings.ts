@@ -25,7 +25,16 @@ import {
   saveStoredQQBotSettings,
   type StoredQQBotSettings,
 } from '../../services/qq-bot/settings';
+import {
+  buildCommentReportNotifyMessage,
+  buildSubmissionNotifyMessage,
+} from '../../services/qq-bot/notify';
+import {
+  buildDailyReportMessage,
+  rescheduleQQBotDailyReport,
+} from '../../services/qq-bot/scheduler';
 import { prisma } from '../../prisma';
+import { z } from 'zod';
 import {
   getStoredRegistrationSettings,
   saveStoredRegistrationSettings,
@@ -203,6 +212,8 @@ export function adminSettingsRoutes(app: FastifyInstance) {
       groupOpenId: stored.groupOpenId,
       channelId: stored.channelId,
       enabled: stored.enabled,
+      notify: stored.notify,
+      dailyReportTime: stored.dailyReportTime,
     };
   }
 
@@ -232,14 +243,44 @@ export function adminSettingsRoutes(app: FastifyInstance) {
       groupOpenId: input.groupOpenId,
       channelId: input.channelId,
       enabled: input.enabled,
+      notify: input.notify,
+      dailyReportTime: input.dailyReportTime,
     });
+    // 日报发送时间或开关可能变化：按最新设置重建调度
+    await rescheduleQQBotDailyReport();
     return { item };
   });
 
-  // 测试发送：用已保存的配置向所有推送目标发一条测试消息（any 成功即 ok）
-  app.post('/api/admin/settings/qq-bot/test', { preHandler: [app.requireAdmin] }, async () => {
-    const result = await broadcastQQBotMessage('这是一条测试消息：QQ 机器人投稿提醒已配置成功。');
-    return result;
+  // 测试推送：用已保存的配置向所有推送目标发送指定类型的文案（any 成功即 ok）。
+  // 显式测试不受 notify 开关限制，便于开启前预览；日报为当前真实统计数据，无需等到定时点。
+  const qqBotTestSchema = z.object({
+    type: z.enum(['general', 'submission', 'report', 'daily']).default('general'),
+  });
+  app.post('/api/admin/settings/qq-bot/test', { preHandler: [app.requireAdmin] }, async (request) => {
+    const { type } = qqBotTestSchema.parse(request.body ?? {});
+    let content: string;
+    switch (type) {
+      case 'submission':
+        content = buildSubmissionNotifyMessage(
+          { entityType: 'GROUP', entityLabel: '用户群', mode: 'CREATE', payload: { name: '示例群聊' }, submitterId: '' },
+          '测试用户',
+        );
+        break;
+      case 'report':
+        content = buildCommentReportNotifyMessage({
+          reporterNickname: '测试用户',
+          commentContent: '这是一条测试举报的评论内容',
+          commentUserNickname: '示例作者',
+          reason: '测试举报理由',
+        });
+        break;
+      case 'daily':
+        content = await buildDailyReportMessage();
+        break;
+      default:
+        content = '这是一条测试消息：QQ 机器人投稿提醒已配置成功。';
+    }
+    return broadcastQQBotMessage(content);
   });
 
   // 机器人已加入的频道列表，供后台「频道子频道 ID」下拉选择

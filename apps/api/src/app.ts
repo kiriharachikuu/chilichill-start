@@ -34,6 +34,7 @@ import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/uploads';
 import { userRoutes } from './routes/users';
 import { qqBotWebhookRoutes } from './routes/qq-bot-webhook';
+import { rescheduleQQBotDailyReport, stopQQBotDailyReport } from './services/qq-bot/scheduler';
 import { setMailConfigProvider } from './services/mail/mailer';
 import { getStoredMailSettings } from './services/mail/settings';
 
@@ -123,6 +124,14 @@ export async function buildApp() {
   adminUsersRoutes(app);
   adminCommentReportRoutes(app);
   adminSettingsRoutes(app);
+
+  // 每日数据日报调度：按后台配置的时间（上海时区）注册；失败不阻塞启动
+  try {
+    await rescheduleQQBotDailyReport();
+  } catch (error) {
+    app.log.error({ err: error }, 'QQ 机器人日报调度注册失败');
+  }
+  app.addHook('onClose', stopQQBotDailyReport);
 
   return app;
 }

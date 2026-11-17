@@ -837,16 +837,37 @@ export const siteSettingsSchema = z.object({
     .transform((value) => (value ? value : null)),
 });
 
-// QQ 机器人提醒设置（用户投稿后通过 QQ 官方机器人推送提醒；AppSecret 读取时脱敏）
+// QQ 机器人推送分类型开关（旧存储数据缺省视为全开，保持既有行为）
+export interface QQBotNotifySettings {
+  submission: boolean; // 投稿提醒（新增/修改投稿）
+  report: boolean; // 评论举报提醒
+  dailyReport: boolean; // 每日数据日报
+}
+
+// QQ 机器人提醒设置（投稿/举报等审核事件通过 QQ 官方机器人推送提醒；AppSecret 读取时脱敏）
 export interface QQBotSettings {
   appId: string;
   appSecret: string; // 读取时脱敏：已配置时为 QQ_BOT_SECRET_KEEP
   groupOpenId: string | null; // QQ 群聊的 openid（群场景推送目标）
   channelId: string | null; // 频道文字子频道 ID（频道场景推送目标）
   enabled: boolean;
+  notify: QQBotNotifySettings;
+  dailyReportTime: string; // 每日日报发送时间 HH:mm（Asia/Shanghai）
 }
 
 export const QQ_BOT_SECRET_KEEP = '__KEEP__';
+export const QQ_BOT_DEFAULT_DAILY_REPORT_TIME = '10:00';
+export const QQ_BOT_DEFAULT_NOTIFY: QQBotNotifySettings = {
+  submission: true,
+  report: true,
+  dailyReport: true,
+};
+
+// HH:mm 格式（小时 00-23，分钟 00-59）
+export const QQ_BOT_DAILY_REPORT_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+// 测试推送类型：general 为基础连通性测试，其余发送对应类型的真实文案（日报为当前真实统计数据）
+export type QQBotTestType = 'general' | 'submission' | 'report' | 'daily';
 
 export const qqBotSettingsSchema = z.object({
   appId: z.string().trim().min(1, 'AppID 不能为空').max(64, 'AppID 过长'),
@@ -859,6 +880,17 @@ export const qqBotSettingsSchema = z.object({
   groupOpenId: optionalTextField(64, '群 OpenID'),
   channelId: optionalTextField(64, '子频道 ID'),
   enabled: z.boolean({ error: '请选择是否启用 QQ 机器人提醒' }),
+  notify: z
+    .object({
+      submission: z.boolean(),
+      report: z.boolean(),
+      dailyReport: z.boolean(),
+    })
+    .default(QQ_BOT_DEFAULT_NOTIFY),
+  dailyReportTime: z
+    .string()
+    .regex(QQ_BOT_DAILY_REPORT_TIME_PATTERN, '日报时间格式应为 HH:mm')
+    .default(QQ_BOT_DEFAULT_DAILY_REPORT_TIME),
 });
 
 // 后台操作审计日志（用户组调整等敏感操作）

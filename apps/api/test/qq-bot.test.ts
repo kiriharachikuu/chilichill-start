@@ -84,15 +84,24 @@ function putQQBot(payload: unknown, token: string) {
   });
 }
 
-function postTest(token: string) {
+function postTest(token: string, payload?: unknown) {
   return app.inject({
     method: 'POST',
     url: '/api/admin/settings/qq-bot/test',
     headers: { cookie: `spaceport_token=${token}` },
+    payload,
   });
 }
 
-const EMPTY_ITEM = { appId: '', appSecret: '', groupOpenId: null, channelId: null, enabled: false };
+const EMPTY_ITEM = {
+  appId: '',
+  appSecret: '',
+  groupOpenId: null,
+  channelId: null,
+  enabled: false,
+  notify: { submission: true, report: true, dailyReport: true },
+  dailyReportTime: '10:00',
+};
 
 function jsonRes(data: unknown, opts: { ok?: boolean; status?: number; statusText?: string } = {}) {
   return {
@@ -130,26 +139,25 @@ describe('QQ 机器人设置路由', () => {
         groupOpenId: 'GROUP-OPEN-ID',
         channelId: '',
         enabled: true,
+        notify: { submission: true, report: false, dailyReport: true },
+        dailyReportTime: '09:30',
       },
       adminToken,
     );
     expect(put.statusCode, put.body).toBe(200);
-    expect(put.json().item).toEqual({
+    const savedItem = {
       appId: '102000001',
       appSecret: QQ_BOT_SECRET_KEEP,
       groupOpenId: 'GROUP-OPEN-ID',
       channelId: null,
       enabled: true,
-    });
+      notify: { submission: true, report: false, dailyReport: true },
+      dailyReportTime: '09:30',
+    };
+    expect(put.json().item).toEqual(savedItem);
 
     const get = await getQQBot(adminToken);
-    expect(get.json().item).toEqual({
-      appId: '102000001',
-      appSecret: QQ_BOT_SECRET_KEEP,
-      groupOpenId: 'GROUP-OPEN-ID',
-      channelId: null,
-      enabled: true,
-    });
+    expect(get.json().item).toEqual(savedItem);
   });
 
   it('AppSecret 传 __KEEP__ 表示沿用现有密钥', async () => {
@@ -187,6 +195,21 @@ describe('QQ 机器人设置路由', () => {
     expect(res.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
   });
 
+  it('日报时间格式非法返回 400', async () => {
+    const res = await putQQBot(
+      {
+        appId: '102000001',
+        appSecret: 'd'.repeat(64),
+        groupOpenId: 'GID',
+        enabled: false,
+        dailyReportTime: '25:00',
+      },
+      adminToken,
+    );
+    expect(res.statusCode).toBe(400);
+    expect(res.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+  });
+
   it('未配置时测试发送返回失败原因且不发起网络请求', async () => {
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
@@ -195,6 +218,78 @@ describe('QQ 机器人设置路由', () => {
     expect(res.json().ok).toBe(false);
     expect(res.json().error).toContain('AppID');
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('测试推送按类型发送对应真实文案', async () => {
+    await saveStoredQQBotSettings({
+      appId: '102000001',
+      appSecret: 'secret-abc',
+      groupOpenId: 'GID-TEST',
+      channelId: null,
+      enabled: true,
+      notify: { submission: true, report: true, dailyReport: true },
+      dailyReportTime: '10:00',
+    });
+
+    async function sendContentOf(type: string): Promise<string> {
+      // 同一用例内连续发送时 access_token 可能命中客户端缓存，按 URL 区分响应而非按调用次数
+      const fetchMock = vi.fn(async (input: unknown) =>
+        String(input).endsWith('/app/getAppAccessToken')
+          ? jsonRes({ access_token: 'tok-1', expires_in: '7200' })
+          : jsonRes({ id: 'msg-1' }),
+      );
+      vi.stubGlobal('fetch', fetchMock);
+      const res = await postTest(adminToken, { type });
+      expect(res.statusCode, res.body).toBe(200);
+      expect(res.json().ok).toBe(true);
+      const messageCall = fetchMock.mock.calls.find((call) => String(call[0]).includes('/v2/groups/'));
+      expect(messageCall, '应发送一条群消息').toBeDefined();
+      expect(String(messageCall![0])).toBe('https://api.bot.qq.com/v2/groups/GID-TEST/messages');
+      return (JSON.parse(String(messageCall![1]!.body)) as { content: string }).content;
+    }
+
+    // 日报：发送当前真实统计数据
+    const daily = await sendContentOf('daily');
+    expect(daily).toContain('【数据日报】');
+    expect(daily).toContain('新增用户：');
+    expect(daily).toContain('待审核积压：');
+
+    const submission = await sendContentOf('submission');
+    expect(submission).toContain('收到新增投稿');
+    expect(submission).toContain('标题：示例群聊');
+    expect(submission).toContain('投稿人：测试用户');
+
+    const report = await sendContentOf('report');
+    expect(report).toContain('收到评论举报');
+    expect(report).toContain('举报理由：测试举报理由');
+  });
+
+  it('不传 type 默认发送通用测试消息，非法 type 返回 400', async () => {
+    await saveStoredQQBotSettings({
+      appId: '102000001',
+      appSecret: 'secret-abc',
+      groupOpenId: 'GID-TEST',
+      channelId: null,
+      enabled: true,
+      notify: { submission: true, report: true, dailyReport: true },
+      dailyReportTime: '10:00',
+    });
+
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(jsonRes({ access_token: 'tok-1', expires_in: '7200' }))
+      .mockResolvedValueOnce(jsonRes({ id: 'msg-1' }));
+    vi.stubGlobal('fetch', fetchMock);
+    const res = await postTest(adminToken);
+    expect(res.statusCode, res.body).toBe(200);
+    expect(res.json().ok).toBe(true);
+    expect(
+      (JSON.parse(String(fetchMock.mock.calls[1]![1]!.body)) as { content: string }).content,
+    ).toContain('这是一条测试消息');
+
+    const bad = await postTest(adminToken, { type: 'unknown' });
+    expect(bad.statusCode).toBe(400);
+    expect(bad.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
   });
 });
 
@@ -212,6 +307,8 @@ describe('QQ 机器人客户端（api-v2）', () => {
       groupOpenId: 'GID-1',
       channelId: null,
       enabled: true,
+      notify: { submission: true, report: true, dailyReport: true },
+      dailyReportTime: '10:00',
     });
 
     const result = await broadcastQQBotMessage('测试消息内容');
@@ -243,6 +340,8 @@ describe('QQ 机器人客户端（api-v2）', () => {
       groupOpenId: 'GID-1',
       channelId: 'CH-1',
       enabled: true,
+      notify: { submission: true, report: true, dailyReport: true },
+      dailyReportTime: '10:00',
     });
 
     const result = await broadcastQQBotMessage('测试消息内容');
@@ -266,6 +365,8 @@ describe('QQ 机器人客户端（api-v2）', () => {
       groupOpenId: 'GID-1',
       channelId: null,
       enabled: true,
+      notify: { submission: true, report: true, dailyReport: true },
+      dailyReportTime: '10:00',
     });
 
     const result = await broadcastQQBotMessage('测试消息内容');

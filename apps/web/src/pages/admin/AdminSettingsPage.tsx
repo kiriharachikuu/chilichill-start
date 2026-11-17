@@ -15,12 +15,15 @@ import {
 } from 'lucide-react';
 import {
   MAIL_SECRET_KEEP,
+  QQ_BOT_DEFAULT_DAILY_REPORT_TIME,
   QQ_BOT_SECRET_KEEP,
   STORAGE_MODES,
   STORAGE_MODE_LABELS,
   STORAGE_SECRET_KEEP,
   type MailSettings,
+  type QQBotNotifySettings,
   type QQBotSettings,
+  type QQBotTestType,
   type RegistrationSettings,
   type SiteSettings,
   type StorageMode,
@@ -795,9 +798,31 @@ interface QQBotForm {
   groupOpenId: string;
   channelId: string;
   enabled: boolean;
+  notify: QQBotNotifySettings;
+  dailyReportTime: string;
 }
 
-const EMPTY_QQ_BOT: QQBotForm = { appId: '', appSecret: '', groupOpenId: '', channelId: '', enabled: false };
+const EMPTY_QQ_BOT: QQBotForm = {
+  appId: '',
+  appSecret: '',
+  groupOpenId: '',
+  channelId: '',
+  enabled: false,
+  notify: { submission: true, report: true, dailyReport: true },
+  dailyReportTime: QQ_BOT_DEFAULT_DAILY_REPORT_TIME,
+};
+
+// 可分类型开关的推送事件
+const QQ_BOT_NOTIFY_TYPES: {
+  key: keyof QQBotNotifySettings;
+  testType: QQBotTestType;
+  label: string;
+  hint: string;
+}[] = [
+  { key: 'submission', testType: 'submission', label: '投稿提醒', hint: '用户新增/修改投稿时推送' },
+  { key: 'report', testType: 'report', label: '举报提醒', hint: '收到评论举报时推送' },
+  { key: 'dailyReport', testType: 'daily', label: '数据日报', hint: '每天定时推送前一天的数据汇总' },
+];
 
 interface QQBotTestResult {
   ok: boolean;
@@ -843,7 +868,7 @@ function QQBotSettingsCard() {
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [testing, setTesting] = useState(false);
+  const [testingType, setTestingType] = useState<QQBotTestType | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   // 频道选择器状态
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -870,6 +895,8 @@ function QQBotSettingsCard() {
         groupOpenId: item.groupOpenId ?? '',
         channelId: item.channelId ?? '',
         enabled: item.enabled,
+        notify: item.notify ?? EMPTY_QQ_BOT.notify,
+        dailyReportTime: item.dailyReportTime ?? QQ_BOT_DEFAULT_DAILY_REPORT_TIME,
       });
     } catch {
       setFailed(true);
@@ -951,6 +978,9 @@ function QQBotSettingsCard() {
     if (form.enabled && !form.groupOpenId.trim() && !form.channelId.trim()) {
       next['targets'] = '启用提醒前请填写群 OpenID 或频道子频道 ID';
     }
+    if (form.enabled && form.notify.dailyReport && !/^([01]\d|2[0-3]):[0-5]\d$/.test(form.dailyReportTime.trim())) {
+      next['dailyReportTime'] = '日报时间格式应为 HH:mm';
+    }
     setErrors(next);
     return Object.keys(next).length === 0;
   }, [form, hasAppSecret]);
@@ -967,6 +997,8 @@ function QQBotSettingsCard() {
         groupOpenId: form.groupOpenId.trim() || null,
         channelId: form.channelId.trim() || null,
         enabled: form.enabled,
+        notify: form.notify,
+        dailyReportTime: form.dailyReportTime.trim() || QQ_BOT_DEFAULT_DAILY_REPORT_TIME,
       });
       toast.success('QQ 机器人设置已保存并生效');
       void fetchSettings();
@@ -979,14 +1011,14 @@ function QQBotSettingsCard() {
     }
   }, [validate, form, hasAppSecret, toast, fetchSettings]);
 
-  // 测试发送前先保存，保证用后台最新配置发送
-  const sendTest = useCallback(async () => {
-    if (testing) return;
+  // 测试推送前先保存，保证用后台最新配置发送
+  const sendTest = useCallback(async (type: QQBotTestType = 'general') => {
+    if (testingType) return;
     const saved = await save();
     if (!saved) return;
-    setTesting(true);
+    setTestingType(type);
     try {
-      const res = await api.post<QQBotTestResult>('/api/admin/settings/qq-bot/test');
+      const res = await api.post<QQBotTestResult>('/api/admin/settings/qq-bot/test', { type });
       if (res.ok) {
         toast.success(`测试消息已发送：${res.sent.join('、')}`);
       } else {
@@ -995,9 +1027,9 @@ function QQBotSettingsCard() {
     } catch (error) {
       toast.error(error instanceof ApiError ? error.message : '测试发送失败，请稍后再试');
     } finally {
-      setTesting(false);
+      setTestingType(null);
     }
-  }, [testing, save, toast]);
+  }, [testingType, save, toast]);
 
   const errorOf = (key: string) => errors[key];
 
@@ -1049,6 +1081,69 @@ function QQBotSettingsCard() {
           })}
         </div>
       </Field>
+      <Field
+        label="推送类型"
+        hint="分别控制哪类事件推送机器人消息；总开关关闭时不推送任何消息"
+      >
+        <div className="grid gap-3 sm:grid-cols-3">
+          {QQ_BOT_NOTIFY_TYPES.map((item) => {
+            const active = form.notify[item.key];
+            return (
+              <div
+                key={item.key}
+                role="button"
+                tabIndex={0}
+                onClick={() => setForm({ ...form, notify: { ...form.notify, [item.key]: !active } })}
+                onKeyDown={(event) => {
+                  if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    setForm({ ...form, notify: { ...form.notify, [item.key]: !active } });
+                  }
+                }}
+                className={`flex cursor-pointer flex-col items-start gap-1.5 rounded-xl border px-4 py-3 text-left transition ${
+                  active ? 'border-amber/70 bg-amber/10' : 'border-white/10 bg-white/[0.04] hover:border-white/25'
+                }`}
+              >
+                <span className="flex w-full items-center gap-2 text-sm font-extrabold text-ink">
+                  <SendHorizonal className={`h-4 w-4 ${active ? 'text-amber' : 'text-muted'}`} />
+                  {item.label}
+                </span>
+                <span className="text-[11px] leading-snug text-muted">{item.hint}</span>
+                <span className="flex w-full items-center justify-between">
+                  <span className={`text-[11px] font-bold ${active ? 'text-amber' : 'text-muted'}`}>
+                    {active ? '已开启' : '已关闭'}
+                  </span>
+                  <button
+                    type="button"
+                    title="先保存配置，再发送该类型的测试推送"
+                    disabled={testingType !== null || saving}
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      void sendTest(item.testType);
+                    }}
+                    className="rounded-lg border border-white/10 px-2 py-0.5 text-[11px] text-muted transition hover:border-amber/60 hover:text-amber disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {testingType === item.testType ? '发送中…' : '测试推送'}
+                  </button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      </Field>
+      {form.notify.dailyReport && (
+        <Field
+          label="日报发送时间"
+          error={errorOf('dailyReportTime')}
+          hint="每日数据日报的发送时间（北京时间），默认 10:00；修改保存后立即生效"
+        >
+          <Input
+            type="time"
+            value={form.dailyReportTime}
+            onChange={(event) => setForm({ ...form, dailyReportTime: event.target.value })}
+          />
+        </Field>
+      )}
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="AppID" required error={errorOf('appId')} hint="QQ 开放平台机器人管理端的 AppID">
           <Input
@@ -1173,16 +1268,18 @@ function QQBotSettingsCard() {
         <Button
           variant="ghost"
           size="sm"
-          disabled={testing || saving}
-          icon={testing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SendHorizonal className="h-3.5 w-3.5" />}
+          disabled={testingType !== null || saving}
+          icon={
+            testingType ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <SendHorizonal className="h-3.5 w-3.5" />
+          }
           onClick={() => void sendTest()}
         >
-          {testing ? '发送中…' : '测试发送'}
+          {testingType ? '发送中…' : '测试推送'}
         </Button>
         <Button
           variant="primary"
           size="sm"
-          disabled={saving || testing}
+          disabled={saving || testingType !== null}
           icon={saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
           onClick={() => void save()}
         >
