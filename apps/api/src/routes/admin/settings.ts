@@ -215,7 +215,9 @@ export function adminSettingsRoutes(app: FastifyInstance) {
     const input = qqBotSettingsSchema.parse(request.body ?? {});
     const existing = await getStoredQQBotSettings();
 
-    // AppSecret 传 __KEEP__ 表示沿用现有值，避免明文在前后端往返
+    // AppSecret 传 __KEEP__ 表示沿用现有值，避免明文在前后端往返。
+    // QQ 的 AppSecret 为任意字符串（官方算法对其 UTF-8 字节翻倍扩展后取 32 字节作
+    // Ed25519 种子），不做格式假设，仅要求非空。
     const appSecret = input.appSecret === QQ_BOT_SECRET_KEEP ? existing.appSecret : input.appSecret;
     if (!appSecret) {
       throw new HttpError(400, 'VALIDATION_ERROR', 'AppSecret 不能为空');

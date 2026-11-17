@@ -5,11 +5,39 @@ import { fetchQQBotGroupInfo } from '../services/qq-bot/client';
 import { getStoredQQBotSettings } from '../services/qq-bot/settings';
 
 // ===== QQ 官方 webhook 回调（https://bot.q.qq.com/wiki/develop/api-v2/）=====
-// 验签按官方 Node 示例：AppSecret 按 hex 解码出 32 字节
-// - 分发请求：以 secret 字节作为 Ed25519 公钥（SPKI 前缀），验 `X-Signature-Timestamp + raw body`
-// - 回调验证（op 13）：以 secret 字节作为私钥种子（PKCS8 前缀），对 `event_ts + plain_token` 签名回传
-const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+// 签名算法按官方文档（sign.html / event-emit.html）：
+// AppSecret 为任意字符串，对其 UTF-8 字节反复翻倍扩展至 >= 32 字节后截取前 32 字节作为
+// Ed25519 种子（seed），公钥/私钥均由该 seed 派生：
+// - 分发请求：验 `X-Signature-Ed25519`（hex）over `X-Signature-Timestamp + raw body`，
+//   成功后回包 {"op": 12}（HTTP Callback ACK）
+// - 回调验证（op 13）：私钥对 `event_ts + plain_token` 签名，hex 回传 {plain_token, signature}
 const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
+const ED25519_SEED_SIZE = 32;
+
+// 官方 seed 构造：Go 版 strings.Repeat(seed, 2) 直至 >= 32 字节再截断。
+// 空 secret 直接返回（0 字节无法扩展），由路由层提前拒绝，避免 while 无限循环
+function seedFromSecret(appSecret: string): Buffer {
+  let seed = Buffer.from(appSecret, 'utf8');
+  if (seed.length === 0) {
+    return seed;
+  }
+  while (seed.length < ED25519_SEED_SIZE) {
+    seed = Buffer.concat([seed, seed]);
+  }
+  return seed.subarray(0, ED25519_SEED_SIZE);
+}
+
+function ed25519PrivateKey(appSecret: string): ReturnType<typeof createPrivateKey> {
+  return createPrivateKey({
+    key: Buffer.concat([ED25519_PKCS8_PREFIX, seedFromSecret(appSecret)]),
+    format: 'der',
+    type: 'pkcs8',
+  });
+}
+
+function ed25519PublicKey(appSecret: string): ReturnType<typeof createPublicKey> {
+  return createPublicKey(ed25519PrivateKey(appSecret));
+}
 
 interface QQBotWebhookEnvelope {
   op?: number;
@@ -21,22 +49,6 @@ interface QQBotWebhookEnvelope {
 }
 
 type RequestWithRawBody = FastifyRequest & { rawBody?: Buffer };
-
-function ed25519PublicKey(appSecret: string): ReturnType<typeof createPublicKey> {
-  return createPublicKey({
-    key: Buffer.concat([ED25519_SPKI_PREFIX, Buffer.from(appSecret, 'hex')]),
-    format: 'der',
-    type: 'spki',
-  });
-}
-
-function ed25519PrivateKey(appSecret: string): ReturnType<typeof createPrivateKey> {
-  return createPrivateKey({
-    key: Buffer.concat([ED25519_PKCS8_PREFIX, Buffer.from(appSecret, 'hex')]),
-    format: 'der',
-    type: 'pkcs8',
-  });
-}
 
 /** 验证分发请求签名：Ed25519(secret 公钥) over `timestamp + raw body`，签名为 hex */
 function verifyDispatchSignature(appSecret: string, message: Buffer, signatureHex: string): boolean {
@@ -107,7 +119,7 @@ export async function qqBotWebhookRoutes(app: FastifyInstance) {
     scope.post('/api/qq-bot/webhook', async (request: FastifyRequest, reply: FastifyReply) => {
       const payload = (request.body ?? {}) as QQBotWebhookEnvelope;
       const settings = await getStoredQQBotSettings();
-      const appSecret = settings.appSecret;
+      const appSecret = settings.appSecret.trim();
 
       // 平台回调验证（op 13）：返回 plain_token 与 Ed25519 签名，供平台校验 URL
       if (payload.op === 13) {
@@ -126,7 +138,11 @@ export async function qqBotWebhookRoutes(app: FastifyInstance) {
         }
       }
 
-      // 分发请求：X-Signature-Ed25519 + X-Signature-Timestamp 验签
+      // 分发请求：X-Signature-Ed25519 + X-Signature-Timestamp 验签。
+      // 未配置 secret 先拒绝——空 secret 无法派生密钥，不能进入验签
+      if (!appSecret) {
+        return reply.code(401).send({ error: 'invalid signature' });
+      }
       const signature = request.headers['x-signature-ed25519'];
       const timestamp = request.headers['x-signature-timestamp'];
       const rawBody = (request as RequestWithRawBody).rawBody;
@@ -139,7 +155,7 @@ export async function qqBotWebhookRoutes(app: FastifyInstance) {
           Buffer.concat([Buffer.from(timestamp, 'utf8'), rawBody]),
           signature,
         );
-      if (!appSecret || !signed) {
+      if (!signed) {
         return reply.code(401).send({ error: 'invalid signature' });
       }
 
@@ -149,7 +165,8 @@ export async function qqBotWebhookRoutes(app: FastifyInstance) {
       } catch (error) {
         request.log.error({ err: error }, 'qq-bot webhook 事件处理失败');
       }
-      return reply.send({ ok: true });
+      // 官方要求分发请求回包 {"op": 12}（HTTP Callback ACK），代表已收到推送
+      return reply.send({ op: 12 });
     });
   });
 }

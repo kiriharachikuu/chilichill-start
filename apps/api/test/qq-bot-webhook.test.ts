@@ -1,4 +1,4 @@
-import { createPrivateKey, createPublicKey, generateKeyPairSync, sign as cryptoSign, verify as cryptoVerify } from 'node:crypto';
+import { createPrivateKey, createPublicKey, sign as cryptoSign, verify as cryptoVerify } from 'node:crypto';
 import bcrypt from 'bcryptjs';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { FastifyInstance } from 'fastify';
@@ -17,14 +17,30 @@ const ADMIN_EMAIL = 'qqbot-hook-admin@test.dev';
 const USER_EMAIL = 'qqbot-hook-user@test.dev';
 const PASSWORD = 'password-123';
 
-// 用于回调验证签名的 64 位 hex AppSecret（32 字节）
-const VALIDATION_SECRET = 'aa11bb22cc33dd44ee55ff6600112233aa11bb22cc33dd44ee55ff6600112233';
-// 分发验签密钥：生成密钥对后把原始公钥 32 字节当 AppSecret（hex），私钥用于构造平台签名
-const DISPATCH_KEY_PAIR = generateKeyPairSync('ed25519');
-const DISPATCH_SECRET = Buffer.from(
-  (DISPATCH_KEY_PAIR.publicKey.export({ format: 'der', type: 'spki' }) as Buffer).subarray(-32),
-).toString('hex');
-const DISPATCH_PRIVATE_KEY = DISPATCH_KEY_PAIR.privateKey;
+// 官方签名算法（sign.html / event-emit.html）：AppSecret 为任意字符串，
+// UTF-8 字节反复翻倍至 >= 32 字节后截取前 32 字节作为 Ed25519 种子（seed），
+// 公钥/私钥均由 seed 派生
+const ED25519_PKCS8_PREFIX = Buffer.from('302e020100300506032b657004220420', 'hex');
+
+function seedFromSecret(appSecret: string): Buffer {
+  let seed = Buffer.from(appSecret, 'utf8');
+  while (seed.length < 32) {
+    seed = Buffer.concat([seed, seed]);
+  }
+  return seed.subarray(0, 32);
+}
+
+function privateKeyFromSeed(seed: Buffer) {
+  return createPrivateKey({ key: Buffer.concat([ED25519_PKCS8_PREFIX, seed]), format: 'der', type: 'pkcs8' });
+}
+
+// 官方文档（sign.html）测试向量所用的 secret
+const VALIDATION_SECRET = 'naOC0ocQE3shWLAfffVLB1rhYPG7';
+const VALIDATION_PRIVATE_KEY = privateKeyFromSeed(seedFromSecret(VALIDATION_SECRET));
+
+// 分发验签：secret 经 seed 派生密钥对，私钥模拟平台签名，服务端应能从同一 secret 派生公钥验过
+const DISPATCH_SECRET = 'dispatch-test-secret-string';
+const DISPATCH_PRIVATE_KEY = privateKeyFromSeed(seedFromSecret(DISPATCH_SECRET));
 
 // 模拟平台对分发请求的签名：Ed25519 over `timestamp + raw body`（纯签名算法 digest 传 null）
 function signDispatch(timestamp: string, rawBody: string): string {
@@ -127,18 +143,26 @@ describe('webhook 回调验证（op 13）', () => {
     expect(body.plain_token).toBe('pt-1');
 
     // 用 AppSecret 派生私钥对应的公钥独立验证签名
-    const privateKey = createPrivateKey({
-      key: Buffer.concat([
-        Buffer.from('302e020100300506032b657004220420', 'hex'),
-        Buffer.from(VALIDATION_SECRET, 'hex'),
-      ]),
-      format: 'der',
-      type: 'pkcs8',
-    });
-    const publicKey = createPublicKey(privateKey);
+    const publicKey = createPublicKey(VALIDATION_PRIVATE_KEY);
     expect(
       cryptoVerify(null, Buffer.from('1700000000pt-1', 'utf8'), publicKey, Buffer.from(body.signature, 'hex')),
     ).toBe(true);
+  });
+
+  it('seed 派生与官方文档 DEMO（sign.html）完全一致', () => {
+    // 官方 DEMO：secret = naOC0ocQE3shWLAfffVLB1rhYPG7，
+    // seed = naOC0ocQE3shWLAfffVLB1rhYPG7naOC（翻倍扩展截取 32 字节）
+    let seed = Buffer.from(VALIDATION_SECRET, 'utf8');
+    while (seed.length < 32) {
+      seed = Buffer.concat([seed, seed]);
+    }
+    expect(seed.subarray(0, 32).toString('latin1')).toBe('naOC0ocQE3shWLAfffVLB1rhYPG7naOC');
+
+    // 官方 DEMO 输出的公钥字节
+    const pub = createPublicKey(VALIDATION_PRIVATE_KEY).export({ format: 'der', type: 'spki' }).subarray(-32);
+    expect(Buffer.from(pub).toString('hex')).toBe(
+      'd7c362fe78aef81ff23287b493628b5db02a3c4fe30b215e4d19609b5d76673a',
+    );
   });
 
   it('未配置 AppSecret 时返回 400', async () => {

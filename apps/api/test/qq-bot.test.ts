@@ -126,7 +126,7 @@ describe('QQ 机器人设置路由', () => {
     const put = await putQQBot(
       {
         appId: '102000001',
-        appSecret: 'secret-abc',
+        appSecret: 'a'.repeat(64),
         groupOpenId: 'GROUP-OPEN-ID',
         channelId: '',
         enabled: true,
@@ -154,7 +154,7 @@ describe('QQ 机器人设置路由', () => {
 
   it('AppSecret 传 __KEEP__ 表示沿用现有密钥', async () => {
     await putQQBot(
-      { appId: '102000001', appSecret: 'secret-abc', groupOpenId: 'GID', enabled: false },
+      { appId: '102000001', appSecret: 'b'.repeat(64), groupOpenId: 'GID', enabled: false },
       adminToken,
     );
     const put = await putQQBot(
@@ -166,7 +166,7 @@ describe('QQ 机器人设置路由', () => {
 
     const stored = await prisma.systemSetting.findUnique({ where: { key: 'qq-bot' } });
     const parsed = JSON.parse(stored!.value) as { appSecret: string };
-    expect(parsed.appSecret).toBe('secret-abc');
+    expect(parsed.appSecret).toBe('b'.repeat(64));
   });
 
   it('首次保存 AppSecret 不能传 __KEEP__（无现有值可沿用）', async () => {
@@ -180,7 +180,7 @@ describe('QQ 机器人设置路由', () => {
 
   it('启用提醒但未填任何推送目标返回 400', async () => {
     const res = await putQQBot(
-      { appId: '102000001', appSecret: 'secret-abc', enabled: true },
+      { appId: '102000001', appSecret: 'c'.repeat(64), enabled: true },
       adminToken,
     );
     expect(res.statusCode).toBe(400);
