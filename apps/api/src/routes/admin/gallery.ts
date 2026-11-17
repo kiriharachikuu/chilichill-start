@@ -2,6 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client';
 import { galleryPayloadSchema, type GalleryPayload } from '@spaceport/shared';
 import { z } from 'zod';
+import { recordAudit } from '../../lib/audit';
 import { HttpError } from '../../lib/errors';
 import { optionalQueryString, pageParams, pageQuery, pageSizeQuery } from '../../lib/query';
 import { galleryUploaderSelect, serializeGalleryImage } from '../../lib/serialize';
@@ -104,6 +105,16 @@ export function adminGalleryRoutes(app: FastifyInstance) {
           uploader: { select: galleryUploaderSelect },
           _count: { select: { likes: true, comments: true } },
         },
+      });
+
+      // 编辑他人已发布内容属敏感操作，与群舱/站点编辑一并落操作日志
+      await recordAudit({
+        actorId: request.user?.sub ?? '',
+        actorNickname: request.user?.nickname ?? '',
+        action: 'content.update',
+        targetType: 'GalleryImage',
+        targetId: id,
+        detail: { entityType: 'GALLERY', fields: Object.keys(buildGalleryData(body)) },
       });
 
       return { item: serializeGalleryImage(image) };

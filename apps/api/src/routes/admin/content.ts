@@ -1,11 +1,14 @@
 import type { FastifyInstance } from 'fastify';
 import type { Prisma } from '../../generated/prisma/client';
-import { GROUP_TYPES, REGION_CODES } from '@spaceport/shared';
+import { GROUP_TYPES, REGION_CODES, groupPayloadSchema, sitePayloadSchema, type GroupPayload, type SitePayload } from '@spaceport/shared';
 import { z } from 'zod';
+import { recordAudit } from '../../lib/audit';
 import { HttpError } from '../../lib/errors';
 import { optionalEnumQuery, optionalQueryString, pageParams, pageQuery, pageSizeQuery } from '../../lib/query';
 import { serializeGroup, serializeSite } from '../../lib/serialize';
+import { getEntity } from '../../modules/entities';
 import { prisma } from '../../prisma';
+import { requireUser } from '../../plugins/auth';
 
 const tagsInclude = { tags: { include: { tag: true } } } as const;
 
@@ -28,6 +31,10 @@ const adminSiteQuerySchema = z.object({
 const publishSchema = z.object({
   published: z.boolean().optional(),
 });
+
+// 后台编辑已发布内容：完整表单字段 + 可选上下线状态（未传 published 时保持原状态）
+const groupEditSchema = groupPayloadSchema.extend({ published: z.boolean().optional() });
+const siteEditSchema = sitePayloadSchema.extend({ published: z.boolean().optional() });
 
 function buildGroupWhere(query: z.infer<typeof adminGroupQuerySchema>): Prisma.GroupWhereInput {
   const where: Prisma.GroupWhereInput = {};
@@ -136,6 +143,50 @@ export function adminContentRoutes(app: FastifyInstance) {
     },
   );
 
+  // 后台直接编辑已发布群组：复用实体 UPDATE 落库逻辑（地区归并/标签校验/群号查重），
+  // 与投稿审核流走同一套数据规则，避免后台绕过校验产生脏数据
+  app.put<{ Params: { id: string } }>(
+    '/api/admin/groups/:id',
+    { preHandler: [app.requireAdmin] },
+    async (request) => {
+      const user = requireUser(request);
+      const body = groupEditSchema.parse(request.body ?? {});
+      const id = request.params.id;
+
+      const existing = await prisma.group.findUnique({ where: { id } });
+      if (!existing) {
+        throw new HttpError(404, 'NOT_FOUND', '群组不存在');
+      }
+
+      const handler = getEntity('GROUP');
+      const normalized = handler.parsePayload(body) as GroupPayload;
+
+      await prisma.$transaction(async (tx) => {
+        await handler.apply(tx, { mode: 'UPDATE', targetId: id, submitterId: user.sub }, normalized);
+        if (body.published !== undefined) {
+          await tx.group.update({ where: { id }, data: { published: body.published } });
+        }
+        await recordAudit(
+          {
+            actorId: user.sub,
+            actorNickname: user.nickname ?? '',
+            action: 'content.update',
+            targetType: 'Group',
+            targetId: id,
+            detail: { entityType: 'GROUP', name: normalized.name, published: body.published ?? null },
+          },
+          tx,
+        );
+      });
+
+      const group = await prisma.group.findUnique({ where: { id }, include: tagsInclude });
+      if (!group) {
+        throw new HttpError(404, 'NOT_FOUND', '群组不存在');
+      }
+      return { item: serializeGroup(group) };
+    },
+  );
+
   app.delete<{ Params: { id: string } }>(
     '/api/admin/groups/:id',
     { preHandler: [app.requireAdmin] },
@@ -174,6 +225,49 @@ export function adminContentRoutes(app: FastifyInstance) {
         include: tagsInclude,
       });
 
+      return { item: serializeSite(site) };
+    },
+  );
+
+  // 后台直接编辑已发布站点：复用实体 UPDATE 落库逻辑（标签校验/链接查重）
+  app.put<{ Params: { id: string } }>(
+    '/api/admin/sites/:id',
+    { preHandler: [app.requireAdmin] },
+    async (request) => {
+      const user = requireUser(request);
+      const body = siteEditSchema.parse(request.body ?? {});
+      const id = request.params.id;
+
+      const existing = await prisma.site.findUnique({ where: { id } });
+      if (!existing) {
+        throw new HttpError(404, 'NOT_FOUND', '站点不存在');
+      }
+
+      const handler = getEntity('SITE');
+      const normalized = handler.parsePayload(body) as SitePayload;
+
+      await prisma.$transaction(async (tx) => {
+        await handler.apply(tx, { mode: 'UPDATE', targetId: id, submitterId: user.sub }, normalized);
+        if (body.published !== undefined) {
+          await tx.site.update({ where: { id }, data: { published: body.published } });
+        }
+        await recordAudit(
+          {
+            actorId: user.sub,
+            actorNickname: user.nickname ?? '',
+            action: 'content.update',
+            targetType: 'Site',
+            targetId: id,
+            detail: { entityType: 'SITE', title: normalized.title, published: body.published ?? null },
+          },
+          tx,
+        );
+      });
+
+      const site = await prisma.site.findUnique({ where: { id }, include: tagsInclude });
+      if (!site) {
+        throw new HttpError(404, 'NOT_FOUND', '站点不存在');
+      }
       return { item: serializeSite(site) };
     },
   );

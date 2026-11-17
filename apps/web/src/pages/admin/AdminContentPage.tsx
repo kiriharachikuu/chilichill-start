@@ -14,16 +14,39 @@ import {
   Trash2,
   UsersRound,
 } from 'lucide-react';
-import { GROUP_PLATFORM_LABELS, type GalleryImage, type Group, type Paginated, type Site } from '@spaceport/shared';
+import {
+  GALLERY_MEDIA_TYPES,
+  GALLERY_MEDIA_TYPE_LABELS,
+  GROUP_PLATFORM_LABELS,
+  type GalleryImage,
+  type Group,
+  type MetaResponse,
+  type Paginated,
+  type Site,
+} from '@spaceport/shared';
 import { ApiError, api } from '../../lib/api';
 import { useDebouncedValue } from '../../lib/hooks';
 import { formatDateTime } from '../../lib/format';
-import { clearMetaCache } from '../../lib/meta';
+import { clearMetaCache, EMPTY_META, loadMeta } from '../../lib/meta';
+import {
+  emptyGroupForm,
+  emptySiteForm,
+  groupFormFromGroup,
+  parseGalleryTags,
+  siteFormFromSite,
+  validateGroupForm,
+  validateSiteForm,
+  type FieldErrors,
+  type GroupFormState,
+  type SiteFormState,
+} from '../../lib/submissionForms';
 import Badge from '../../components/Badge';
 import Button, { buttonClass } from '../../components/Button';
 import Card from '../../components/Card';
 import EmptyState from '../../components/EmptyState';
-import { Field, Input, Select } from '../../components/Field';
+import { Field, Input, Select, Textarea } from '../../components/Field';
+import GroupFields from '../../components/forms/GroupFields';
+import SiteFields from '../../components/forms/SiteFields';
 import ImageUploader from '../../components/ImageUploader';
 import Modal from '../../components/Modal';
 import Pagination from '../../components/Pagination';
@@ -88,6 +111,9 @@ interface GalleryEditorFormState {
   title: string;
   imageUrl: string | null;
   published: 'true' | 'false';
+  description: string;
+  mediaType: string;
+  tagsInput: string;
 }
 
 type GalleryEditor = { mode: 'create' } | { mode: 'edit'; image: GalleryImage };
@@ -95,7 +121,14 @@ type GalleryEditor = { mode: 'create' } | { mode: 'edit'; image: GalleryImage };
 type GalleryEditorErrors = Partial<Record<keyof GalleryEditorFormState, string>>;
 
 function emptyGalleryEditorForm(): GalleryEditorFormState {
-  return { title: '', imageUrl: null, published: 'true' };
+  return {
+    title: '',
+    imageUrl: null,
+    published: 'true',
+    description: '',
+    mediaType: '',
+    tagsInput: '',
+  };
 }
 
 export default function AdminContentPage() {
@@ -119,6 +152,29 @@ export default function AdminContentPage() {
   const [galleryErrors, setGalleryErrors] = useState<GalleryEditorErrors>({});
   const [galleryServerError, setGalleryServerError] = useState('');
   const [gallerySaving, setGallerySaving] = useState(false);
+
+  // 群舱/站点编辑弹窗：直接改别人已发布内容的字段，复用投稿表单组件与校验
+  const [meta, setMeta] = useState<MetaResponse>(EMPTY_META);
+  const [groupEditor, setGroupEditor] = useState<Group | null>(null);
+  const [groupForm, setGroupForm] = useState<GroupFormState>(emptyGroupForm);
+  const [groupErrors, setGroupErrors] = useState<FieldErrors>({});
+  const [groupServerError, setGroupServerError] = useState('');
+  const [groupSaving, setGroupSaving] = useState(false);
+  const [siteEditor, setSiteEditor] = useState<Site | null>(null);
+  const [siteForm, setSiteForm] = useState<SiteFormState>(emptySiteForm);
+  const [siteErrors, setSiteErrors] = useState<FieldErrors>({});
+  const [siteServerError, setSiteServerError] = useState('');
+  const [siteSaving, setSiteSaving] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    loadMeta().then((data) => {
+      if (alive) setMeta(data);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   useEffect(() => {
     let alive = true;
@@ -206,7 +262,70 @@ export default function AdminContentPage() {
       title: image.title ?? '',
       imageUrl: image.imageUrl,
       published: image.published ? 'true' : 'false',
+      description: image.description ?? '',
+      mediaType: image.mediaType ?? '',
+      tagsInput: image.tags.join(' '),
     });
+  };
+
+  const openGroupEdit = (group: Group) => {
+    setGroupEditor(group);
+    setGroupForm(groupFormFromGroup(group));
+    setGroupErrors({});
+    setGroupServerError('');
+  };
+
+  const openSiteEdit = (site: Site) => {
+    setSiteEditor(site);
+    setSiteForm(siteFormFromSite(site));
+    setSiteErrors({});
+    setSiteServerError('');
+  };
+
+  const submitGroupEditor = async () => {
+    if (!groupEditor) return;
+    const { errors, payload } = validateGroupForm(groupForm);
+    setGroupErrors(errors);
+    if (!payload) return;
+
+    setGroupServerError('');
+    setGroupSaving(true);
+    try {
+      const result = await api.put<{ item: Group }>(`${ENDPOINTS.GROUP}/${groupEditor.id}`, payload);
+      setItems((prev) =>
+        prev.map((row) => (row.id === groupEditor.id ? { ...row, ...result.item } : row)),
+      );
+      toast.success('群舱信息已更新');
+      clearMetaCache();
+      setGroupEditor(null);
+    } catch (error) {
+      setGroupServerError(error instanceof ApiError ? error.message : '保存失败，请稍后再试');
+    } finally {
+      setGroupSaving(false);
+    }
+  };
+
+  const submitSiteEditor = async () => {
+    if (!siteEditor) return;
+    const { errors, payload } = validateSiteForm(siteForm);
+    setSiteErrors(errors);
+    if (!payload) return;
+
+    setSiteServerError('');
+    setSiteSaving(true);
+    try {
+      const result = await api.put<{ item: Site }>(`${ENDPOINTS.SITE}/${siteEditor.id}`, payload);
+      setItems((prev) =>
+        prev.map((row) => (row.id === siteEditor.id ? { ...row, ...result.item } : row)),
+      );
+      toast.success('站点信息已更新');
+      clearMetaCache();
+      setSiteEditor(null);
+    } catch (error) {
+      setSiteServerError(error instanceof ApiError ? error.message : '保存失败，请稍后再试');
+    } finally {
+      setSiteSaving(false);
+    }
   };
 
   const submitGalleryEditor = async () => {
@@ -214,6 +333,8 @@ export default function AdminContentPage() {
     const next: GalleryEditorErrors = {};
     if (!galleryForm.imageUrl) next.imageUrl = '请上传作品图片';
     if (galleryForm.title.trim().length > 40) next.title = '标题最多 40 个字';
+    const tags = parseGalleryTags(galleryForm.tagsInput);
+    if (tags.length > 8) next.tagsInput = '标签最多 8 个';
     setGalleryErrors(next);
     if (Object.keys(next).length > 0) return;
 
@@ -223,6 +344,9 @@ export default function AdminContentPage() {
       imageUrl: galleryForm.imageUrl ?? '',
       title: galleryForm.title.trim() || null,
       published: galleryForm.published === 'true',
+      mediaType: galleryForm.mediaType || null,
+      description: galleryForm.description.trim() || null,
+      tags,
     };
     try {
       if (galleryEditor.mode === 'create') {
@@ -467,7 +591,16 @@ export default function AdminContentPage() {
                         onClick={() => openGalleryEdit(item)}
                         aria-label="编辑作品"
                       />
-                    ) : null}
+                    ) : (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={busyId !== null && busyId !== item.id}
+                        icon={<Pencil className="h-3.5 w-3.5" />}
+                        onClick={() => (group ? openGroupEdit(item) : openSiteEdit(item))}
+                        aria-label="编辑内容"
+                      />
+                    )}
                     <Button
                       size="sm"
                       variant="secondary"
@@ -614,6 +747,48 @@ export default function AdminContentPage() {
             />
           </Field>
 
+          <Field label="作品类型">
+            <Select
+              value={galleryForm.mediaType}
+              onChange={(event) =>
+                setGalleryForm((prev) => ({ ...prev, mediaType: event.target.value }))
+              }
+            >
+              <option value="">未分类</option>
+              {GALLERY_MEDIA_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {GALLERY_MEDIA_TYPE_LABELS[type]}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          <Field label="作品描述" error={galleryErrors.description}>
+            <Textarea
+              value={galleryForm.description}
+              maxLength={200}
+              rows={3}
+              onChange={(event) =>
+                setGalleryForm((prev) => ({ ...prev, description: event.target.value }))
+              }
+              placeholder="介绍这幅作品的创作背景…"
+            />
+          </Field>
+
+          <Field
+            label="标签"
+            error={galleryErrors.tagsInput}
+            hint="空格分隔，最多 8 个，例如：画作 线稿"
+          >
+            <Input
+              value={galleryForm.tagsInput}
+              onChange={(event) =>
+                setGalleryForm((prev) => ({ ...prev, tagsInput: event.target.value }))
+              }
+              placeholder="例如：画作 线稿"
+            />
+          </Field>
+
           <Field label="上架状态">
             <Select
               value={galleryForm.published}
@@ -632,6 +807,66 @@ export default function AdminContentPage() {
           {galleryServerError ? (
             <div className="rounded-xl border border-coral/35 bg-coral/10 px-4 py-3 text-xs text-coral">
               {galleryServerError}
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(groupEditor)}
+        onClose={() => {
+          if (!groupSaving) setGroupEditor(null);
+        }}
+        size="lg"
+        eyebrow="Edit Group"
+        title="编辑群舱"
+        description="修改会立即生效并记入操作日志；上线 / 下线请在列表行使用对应按钮。"
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="ghost" onClick={() => setGroupEditor(null)} disabled={groupSaving}>
+              取消
+            </Button>
+            <Button loading={groupSaving} onClick={() => void submitGroupEditor()}>
+              保存修改
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <GroupFields value={groupForm} onChange={setGroupForm} meta={meta} errors={groupErrors} />
+          {groupServerError ? (
+            <div className="rounded-xl border border-coral/35 bg-coral/10 px-4 py-3 text-xs text-coral">
+              {groupServerError}
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+
+      <Modal
+        open={Boolean(siteEditor)}
+        onClose={() => {
+          if (!siteSaving) setSiteEditor(null);
+        }}
+        size="lg"
+        eyebrow="Edit Site"
+        title="编辑站点"
+        description="修改会立即生效并记入操作日志；上线 / 下线请在列表行使用对应按钮。"
+        footer={
+          <div className="flex flex-wrap justify-end gap-2">
+            <Button variant="ghost" onClick={() => setSiteEditor(null)} disabled={siteSaving}>
+              取消
+            </Button>
+            <Button loading={siteSaving} onClick={() => void submitSiteEditor()}>
+              保存修改
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <SiteFields value={siteForm} onChange={setSiteForm} meta={meta} errors={siteErrors} />
+          {siteServerError ? (
+            <div className="rounded-xl border border-coral/35 bg-coral/10 px-4 py-3 text-xs text-coral">
+              {siteServerError}
             </div>
           ) : null}
         </div>
