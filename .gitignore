@@ -15,6 +15,9 @@ apps/api/dev.db-journal
 .screenshots/
 .trae-html-share-packages/
 
+# 部署脚本发布状态（仅存在于服务器工作目录）
+.deploy-state
+
 # Prisma 7 生成客户端（由 postinstall / prisma generate 产出）
 apps/api/src/generated/
 

@@ -87,6 +87,8 @@ npm test --workspace=@spaceport/web   # Web 组件测试（26 用例）
 | `npm run admin:promote --workspace=@spaceport/api -- <邮箱>` | 把已注册用户提升为 ADMIN（首次安装建管理员用） |
 | `npm test --workspace=@spaceport/api` / `--workspace=@spaceport/web` | 运行测试 |
 | `npm run db:reset --workspace=@spaceport/api` | 重置开发数据库并重新执行迁移与种子 |
+| `scripts/deploy-init.sh` | 服务器一键**首次部署**（交互式引导：拉代码 / 装依赖 / 构建 / 生成 `.env` / 迁移 / bootstrap / PM2 启动 / 探活），详见[生产部署](#生产部署) |
+| `scripts/deploy-update.sh` | 服务器一键**增量更新**（依赖 / 迁移按需执行 + 自动备份 + 健康检查），详见[方案 A · 日常更新](#8-日常更新) |
 
 ## 环境变量
 
@@ -149,6 +151,28 @@ npm test --workspace=@spaceport/web   # Web 组件测试（26 用例）
 ## 方案 A（推荐）：独立服务器一体化部署（Debian + 宝塔）
 
 Nginx 托管前端静态文件并反代 `/api`、`/uploads` 到本机 Node 进程，同域部署零代码改动。
+
+### 一键脚本（推荐）
+
+装好环境（第 1 节：Node 22 + PM2）后，首次部署与日常更新各只需一条命令：
+
+```bash
+# 首次部署：clone 后进入项目目录执行
+git clone <你的仓库地址> chilichill && cd chilichill
+chmod +x scripts/*.sh
+./scripts/deploy-init.sh
+```
+
+`deploy-init.sh` 交互式引导（有默认值，一路回车即可），依次完成：环境检查 → 拉代码 → 装依赖 → 构建 → 生成 `apps/api/.env`（**自动生成 32 位随机 `JWT_SECRET`**，提问 Resend 密钥与发件邮箱）→ 迁移 → 基础数据 bootstrap → PM2 启动 → 健康检查，最后打印收尾清单（Nginx 建站、管理员提权命令）。安装目录 / 端口 / 数据目录可用 `--dir`、`--port`、`--data-dir` 预填跳过提问。
+
+```bash
+# 日常更新：一条命令，增量执行
+./scripts/deploy-update.sh
+```
+
+`deploy-update.sh` 自动判断增量：依赖锁未变跳过 `npm ci`、迁移未变跳过 `migrate deploy`、schema 未变跳过 `prisma generate`；无新提交且上次发布成功时只做探活直接返回；迁移前自动备份 SQLite（保留最近 10 份）；发布状态记录在 `.deploy-state`，**中途失败直接重跑即可续上**。可选参数：`--skip-backup` 跳过备份、`--force` 强制完整流程。两个脚本头部的配置块可改分支名 / 端口 / PM2 进程名。
+
+以下为手动部署的等价步骤（想了解脚本每一步做了什么、或需要脱离脚本操作时参考）。
 
 ### 1. 安装环境
 
@@ -332,11 +356,20 @@ sqlite3 /www/chilichill-data/prod.db ".backup /www/backup/db-$(date +\%F).db" &&
 
 ### 8. 日常更新
 
+推荐直接用更新脚本（增量执行 + 自动备份 + 失败可重跑续上）：
+
+```bash
+cd /www/wwwroot/chilichill
+./scripts/deploy-update.sh
+```
+
+手动执行等价命令：
+
 ```bash
 cd /www/wwwroot/chilichill
 git pull
 npm ci
-npm run build -w @spaceport/web
+npm run build
 cd apps/api && npx prisma migrate deploy   # 有新迁移时
 pm2 restart spaceport-api
 ```
@@ -352,7 +385,7 @@ pm2 restart spaceport-api
 
 - EdgeOne Pages 构建配置：安装 `npm ci`，构建 `npm run build -w @spaceport/web`，输出目录 `apps/web/dist`；重写规则配置非静态路径 fallback 到 `/index.html`
 - 规则引擎添加 `/api/*`、`/uploads/*` 按路径回源到服务器
-- 后端侧与方案 A 完全相同（`.env`、bootstrap、promote-admin、PM2）
+- 后端侧与方案 A 完全相同（`.env`、bootstrap、promote-admin、PM2），首次安装与日常更新同样可用 `deploy-init.sh` / `deploy-update.sh`
 - 同域架构下 Cookie / CORS / 限流按现状工作，**无需改任何代码**
 - 注意：国内 EdgeOne 节点要求备案域名
 - 不推荐前后端分域部署：需额外改 API base URL、Cookie `sameSite:'none'` 与 CORS 三处代码，当前规模没有收益
