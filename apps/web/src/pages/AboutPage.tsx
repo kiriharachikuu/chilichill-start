@@ -149,10 +149,8 @@ export default function AboutPage() {
           </p>
           <p>
             <strong className="text-ink">信息安全：</strong>
-            不收集姓名、身份证号等实名信息，登录凭证加密存储；具体规则详见
-            <Link to="/privacy" className="text-amber underline underline-offset-2">
-              《隐私政策》
-            </Link>
+            不收集姓名、身份证号等实名信息，登录凭证加密存储；具体规则详见 
+            <Link to="/privacy" className="text-amber underline underline-offset-2">《隐私政策》</Link>
             。
           </p>
         </PolicySection>
@@ -166,10 +164,8 @@ export default function AboutPage() {
           </p>
           <p>本站不面向未满 14 周岁的未成年人提供服务。</p>
           <p>
-            使用本站即表示同意
-            <Link to="/terms" className="text-amber underline underline-offset-2">
-              《用户协议》
-            </Link>
+            使用本站即表示同意 
+            <Link to="/terms" className="text-amber underline underline-offset-2">《用户协议》</Link>
             ，相关权利义务以协议全文为准。
           </p>
         </PolicySection>

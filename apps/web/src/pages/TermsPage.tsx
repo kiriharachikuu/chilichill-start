@@ -311,9 +311,9 @@ export default function TermsPage() {
             如果您对本协议或本站服务有任何疑问、意见或投诉建议，可通过页脚公示的联系邮箱与我们联系。我们会尽快跟进处理，并在法律法规规定的期限内回复您的请求。
           </Clause>
           <Clause>
-            本协议项下的个人信息处理事宜，请同时查阅《
-            <Link to="/privacy" className="text-amber underline underline-offset-2">隐私政策</Link>
-            》。
+            本协议项下的个人信息处理事宜，请同时查阅
+            <Link to="/privacy" className="text-amber underline underline-offset-2">《隐私政策》</Link>
+            。
           </Clause>
         </Chapter>
       </div>

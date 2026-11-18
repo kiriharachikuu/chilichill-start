@@ -244,9 +244,9 @@ export default function PrivacyPage() {
             如果您对本政策或个人信息保护有任何疑问、意见或建议，可通过页脚公示的联系邮箱联系我们。我们会尽快跟进处理，并在法律法规规定的期限内回复您的请求。
           </Clause>
           <Clause>
-            您还可以查阅《
-            <Link to="/terms" className="text-amber underline underline-offset-2">用户协议</Link>
-            》了解本站服务的其他约定。
+            您还可以查阅
+            <Link to="/terms" className="text-amber underline underline-offset-2">《用户协议》</Link>
+            了解本站服务的其他约定。
           </Clause>
         </Chapter>
       </div>
