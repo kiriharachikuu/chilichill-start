@@ -18,12 +18,14 @@ import { adminRulesRoutes } from './routes/admin/rules';
 import { adminTagsRoutes } from './routes/admin/tags';
 import { adminUsersRoutes } from './routes/admin/users';
 import { adminCommentReportRoutes } from './routes/admin/comment-reports';
+import { adminPenaltyRoutes } from './routes/admin/penalties';
 import { adminSettingsRoutes } from './routes/admin/settings';
 import { adminActivitiesRoutes } from './routes/admin/activities';
 import { adminGalleryRoutes } from './routes/admin/gallery';
 import { authRoutes } from './routes/auth';
 import { publicActivitiesRoutes } from './routes/activities';
 import { publicGalleryRoutes } from './routes/gallery';
+import { publicPenaltyRoutes } from './routes/penalties';
 import { publicGroupsRoutes } from './routes/groups';
 import { metaRoutes } from './routes/meta';
 import { qrcodeRoutes } from './routes/qrcode';
@@ -123,7 +125,9 @@ export async function buildApp() {
   adminGalleryRoutes(app);
   adminUsersRoutes(app);
   adminCommentReportRoutes(app);
+  adminPenaltyRoutes(app);
   adminSettingsRoutes(app);
+  publicPenaltyRoutes(app);
 
   // 每日数据日报调度：按后台配置的时间（上海时区）注册；失败不阻塞启动
   try {

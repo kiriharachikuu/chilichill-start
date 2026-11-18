@@ -8,6 +8,7 @@ import HomePage from './pages/HomePage';
 import GroupsPage from './pages/GroupsPage';
 import GroupDetailPage from './pages/GroupDetailPage';
 import SitesPage from './pages/SitesPage';
+import BlackhousePage from './pages/BlackhousePage';
 import ActivitiesPage from './pages/ActivitiesPage';
 import ActivityDetailPage from './pages/ActivityDetailPage';
 import GalleryPage from './pages/GalleryPage';
@@ -28,6 +29,7 @@ const AdminReviewPage = lazy(() => import('./pages/admin/AdminReviewPage'));
 const AdminContentPage = lazy(() => import('./pages/admin/AdminContentPage'));
 const AdminActivitiesPage = lazy(() => import('./pages/admin/AdminActivitiesPage'));
 const AdminReportsPage = lazy(() => import('./pages/admin/AdminReportsPage'));
+const AdminPenaltiesPage = lazy(() => import('./pages/admin/AdminPenaltiesPage'));
 const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'));
 const AdminTagsPage = lazy(() => import('./pages/admin/AdminTagsPage'));
 const AdminRulesPage = lazy(() => import('./pages/admin/AdminRulesPage'));
@@ -84,6 +86,7 @@ export default function App() {
               <Route path="groups" element={<GroupsPage />} />
               <Route path="groups/:id" element={<GroupDetailPage />} />
               <Route path="sites" element={<SitesPage />} />
+              <Route path="blackhouse" element={<BlackhousePage />} />
               <Route path="activities" element={<ActivitiesPage />} />
               <Route path="activities/:id" element={<ActivityDetailPage />} />
               <Route path="gallery" element={<GalleryPage />} />
@@ -104,6 +107,7 @@ export default function App() {
                   <Route path="content" element={<AdminContentPage />} />
                   <Route path="activities" element={<AdminActivitiesPage />} />
                   <Route path="reports" element={<AdminReportsPage />} />
+                  <Route path="penalties" element={<AdminPenaltiesPage />} />
                   <Route path="settings" element={<AdminSettingsPage />} />
                   <Route path="tags" element={<AdminTagsPage />} />
                   <Route path="rules" element={<AdminRulesPage />} />

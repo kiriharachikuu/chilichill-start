@@ -615,6 +615,7 @@ export const PERMISSIONS = {
   REVIEW_SELF: 'review:self', // 审核自己提交的投稿（仅管理员）
   REVIEW_BATCH: 'review:batch', // 批量审核
   REPORT_MANAGE: 'report:manage', // 评论举报管理
+  PENALTY_MANAGE: 'penalty:manage', // 处罚管理（处罚记录查询；撤销仅限管理员）
   CONTENT_MANAGE: 'content:manage', // 内容 / 活动 / 画廊 / 标签 / 分类规则管理
   USER_MANAGE: 'user:manage', // 用户管理
   SYSTEM_MANAGE: 'system:manage', // 系统设置
@@ -629,6 +630,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     PERMISSIONS.REVIEW_DECIDE,
     PERMISSIONS.REVIEW_BATCH,
     PERMISSIONS.REPORT_MANAGE,
+    PERMISSIONS.PENALTY_MANAGE,
   ],
   ADMIN: Object.values(PERMISSIONS),
 };
@@ -670,6 +672,142 @@ export interface CommentReport {
 }
 
 export interface CommentReportListResponse extends Paginated<CommentReport> {}
+
+// 举报核实后的自动处罚响应：penalty 为本次核实触发的处罚（未触发时为 null）
+export interface ReportResolveResponse {
+  item: CommentReport;
+  penalty: AppliedPenaltySummary | null;
+}
+
+export interface AppliedPenaltySummary {
+  id: string;
+  userId: string;
+  userUid: number | null;
+  userNickname: string | null;
+  type: PenaltyType;
+  durationDays: number | null;
+  startedAt: string;
+  endsAt: string | null;
+  reason: string;
+}
+
+// ─── 举报处罚（警告 / 禁言 / 封号） ────────────────────────────────────────────
+// 阶梯规则：前 3 次核实举报仅警告；警告满 3 次后按 3/7/15 天阶梯禁言；禁言满 3 次永久封号。
+// 撤销处罚会同步回退有效计数，阶梯始终按「有效处罚记录」实时重算。
+export const PENALTY_TYPES = ['WARNING', 'MUTE', 'BAN'] as const;
+export type PenaltyType = (typeof PENALTY_TYPES)[number];
+export const PENALTY_TYPE_LABELS: Record<PenaltyType, string> = {
+  WARNING: '警告',
+  MUTE: '禁言',
+  BAN: '永久封号',
+};
+
+export const WARNING_LIMIT = 3;
+export const MUTE_LIMIT = 3;
+export const MUTE_DURATION_DAYS = [3, 7, 15] as const;
+
+export interface DerivedPenalty {
+  type: PenaltyType;
+  /** 禁言天数；警告与封号为 null */
+  durationDays: number | null;
+}
+
+/**
+ * 根据用户当前有效处罚计数（有效警告数 / 有效禁言数）推导下一次核实举报触发的处罚：
+ * - warningCount < 3 → 警告（第 1~3 次核实举报）
+ * - 警告满 3 次后取阶梯天数：已禁言 0 次→3 天、1 次→7 天、2 次→15 天
+ * - 禁言满 3 次 → 永久封号
+ */
+export function derivePenalty(warningCount: number, muteCount: number): DerivedPenalty {
+  if (warningCount < WARNING_LIMIT) {
+    return { type: 'WARNING', durationDays: null };
+  }
+  if (muteCount < MUTE_LIMIT) {
+    return { type: 'MUTE', durationDays: MUTE_DURATION_DAYS[muteCount] };
+  }
+  return { type: 'BAN', durationDays: null };
+}
+
+export interface Penalty {
+  id: string;
+  userId: string;
+  userUid: number | null;
+  userNickname: string | null;
+  type: PenaltyType;
+  durationDays: number | null;
+  startedAt: string;
+  endsAt: string | null;
+  reason: string;
+  evidenceReportIds: string[];
+  operatorId: string | null;
+  operatorNickname: string | null;
+  revokedAt: string | null;
+  revokedByNickname: string | null;
+  revokeReason: string | null;
+  createdAt: string;
+}
+
+export interface PenaltyListResponse extends Paginated<Penalty> {}
+
+// 小黑屋公示条目：仅暴露 uid、处罚类型、时长、起止时间与违规事由（不含邮箱等隐私字段）
+export interface PublicPenalty {
+  id: string;
+  userUid: number | null;
+  type: PenaltyType;
+  durationDays: number | null;
+  startedAt: string;
+  endsAt: string | null;
+  reason: string;
+}
+
+export interface PublicPenaltyListResponse extends Paginated<PublicPenalty> {}
+
+// 用户处罚状态（实时）：累计有效警告/禁言次数、当前生效禁言与剩余时长、封号状态
+export interface PenaltyStatus {
+  warningCount: number;
+  muteCount: number;
+  banned: boolean;
+  bannedAt: string | null;
+  activeMute: {
+    id: string;
+    startedAt: string;
+    endsAt: string;
+    remainingSeconds: number;
+  } | null;
+}
+
+// 随 /api/auth/* 返回的处罚状态摘要：前端据此禁用评论框、展示封禁/禁言提示
+export interface UserPenaltyState {
+  banned: boolean;
+  /** 当前生效禁言的结束时间；无生效禁言为 null */
+  mutedUntil: string | null;
+  warningCount: number;
+  muteCount: number;
+}
+
+export const penaltyRevokeSchema = z.object({
+  reason: z.string().trim().min(2, '撤销原因至少 2 个字').max(200, '撤销原因最多 200 个字'),
+});
+export type PenaltyRevokeInput = z.infer<typeof penaltyRevokeSchema>;
+
+// ─── 站内系统通知（处罚触发 / 撤销等） ────────────────────────────────────────
+export const NOTIFICATION_TYPES = ['PENALTY', 'PENALTY_REVOKED'] as const;
+export type NotificationType = (typeof NOTIFICATION_TYPES)[number];
+export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
+  PENALTY: '处罚通知',
+  PENALTY_REVOKED: '处罚撤销通知',
+};
+
+export interface NotificationItem {
+  id: string;
+  type: NotificationType;
+  title: string;
+  content: string;
+  readAt: string | null;
+  createdAt: string;
+}
+
+export interface NotificationListResponse extends Paginated<NotificationItem> {}
 
 // ─── 系统设置（存储配置） ─────────────────────────────────────────────────────
 export const STORAGE_MODES = ['local', 'cos', 'oss'] as const;

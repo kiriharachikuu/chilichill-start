@@ -10,7 +10,7 @@ import { prisma } from '../src/prisma';
 // - 审核自审排除、approve 事务落地、reject → resubmit 链路
 // 鉴权为 cookie JWT；requireReviewer 实时查库取角色，审核人必须真实存在于 DB（role='MODERATOR'）
 
-const TEST_EMAILS = ['sub-a@test.dev', 'sub-b@test.dev', 'sub-mod@test.dev'];
+const TEST_EMAILS = ['sub-a@test.dev', 'sub-b@test.dev', 'sub-mod@test.dev', 'sub-admin@test.dev'];
 const TEST_IMAGE_URL_PREFIX = '/test/submissions/';
 
 interface TestUser {
@@ -23,6 +23,7 @@ let app: FastifyInstance;
 let userA: TestUser;
 let userB: TestUser;
 let moderator: TestUser;
+let admin: TestUser;
 let userBGroupId: string; // userB 上传的群组（越权目标）
 let userAGroupId: string; // userA 上传的群组（合法 UPDATE 目标）
 let submissionGalleryId: string; // userA 画廊新增投稿（approve 落地链）
@@ -101,6 +102,11 @@ beforeAll(async () => {
   });
   moderator = await prisma.user.create({
     data: { email: 'sub-mod@test.dev', nickname: '审核员', passwordHash: 'test-only', uid: 900013, role: 'MODERATOR' },
+    select: { id: true, nickname: true, role: true },
+  });
+  // authenticate 实时查库（封号拦截/删除用户 token 失效），token 必须对应真实存在的用户
+  admin = await prisma.user.create({
+    data: { email: 'sub-admin@test.dev', nickname: '管理员', passwordHash: 'test-only', uid: 900014, role: 'ADMIN' },
     select: { id: true, nickname: true, role: true },
   });
 
@@ -243,11 +249,10 @@ describe('GET /api/submissions/:id', () => {
   });
 
   it('管理员可查看任意投稿', async () => {
-    const adminToken = app.jwt.sign({ sub: 'admin-nonexist', role: 'ADMIN', nickname: '管理员' });
     const res = await app.inject({
       method: 'GET',
       url: `/api/submissions/${submissionGalleryId}`,
-      headers: { cookie: `spaceport_token=${adminToken}` },
+      ...auth(admin),
     });
     expect(res.statusCode).toBe(200);
     expect(res.json().item.id).toBe(submissionGalleryId);

@@ -4,6 +4,9 @@ import {
   profileUpdateSchema,
   ReceivedCommentListResponse,
   ReceivedLikeListResponse,
+  type NotificationItem,
+  type NotificationListResponse,
+  type PenaltyStatus,
   type SpaceResourcesResponse,
 } from '@spaceport/shared';
 import { z } from 'zod';
@@ -19,6 +22,7 @@ import {
 } from '../lib/serialize';
 import { prisma } from '../prisma';
 import { requireUser } from '../plugins/auth';
+import { getPenaltyStatus } from '../services/penalty';
 
 const resourceQuerySchema = z.object({
   type: z.enum(['GROUP', 'SITE', 'GALLERY']),
@@ -30,6 +34,24 @@ const receivedQuerySchema = z.object({
   page: pageQuery,
   pageSize: pageSizeQuery(10, 30),
 });
+
+function serializeNotification(notification: {
+  id: string;
+  type: string;
+  title: string;
+  content: string;
+  readAt: Date | null;
+  createdAt: Date;
+}): NotificationItem {
+  return {
+    id: notification.id,
+    type: notification.type as NotificationItem['type'],
+    title: notification.title,
+    content: notification.content,
+    readAt: notification.readAt ? notification.readAt.toISOString() : null,
+    createdAt: notification.createdAt.toISOString(),
+  };
+}
 
 // 个人空间：按 uid 公开查询用户资料与其上传且已发布的资源
 export function userRoutes(app: FastifyInstance) {
@@ -64,6 +86,64 @@ export function userRoutes(app: FastifyInstance) {
       },
     };
   });
+
+  // 我的处罚状态（实时）：累计有效警告/禁言次数、当前生效禁言与剩余时长、封号状态
+  app.get('/api/users/me/penalty-status', { preHandler: [app.authenticate] }, async (request) => {
+    const status: PenaltyStatus = await getPenaltyStatus(requireUser(request).sub);
+    return status;
+  });
+
+  // 我的系统通知：处罚触发/撤销等，按时间倒序分页
+  app.get('/api/users/me/notifications', { preHandler: [app.authenticate] }, async (request) => {
+    const userId = requireUser(request).sub;
+    const query = receivedQuerySchema.parse(request.query ?? {});
+    const { page, pageSize, skip, take } = pageParams(query.page, query.pageSize, {
+      pageSize: 10,
+      maxPageSize: 30,
+    });
+
+    const where = { userId };
+    const [total, notifications] = await Promise.all([
+      prisma.notification.count({ where }),
+      prisma.notification.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take,
+      }),
+    ]);
+
+    const response: NotificationListResponse = {
+      items: notifications.map(serializeNotification),
+      total,
+      page,
+      pageSize,
+    };
+    return response;
+  });
+
+  // 标记通知已读：仅限本人
+  app.post<{ Params: { id: string } }>(
+    '/api/users/me/notifications/:id/read',
+    { preHandler: [app.authenticate] },
+    async (request) => {
+      const userId = requireUser(request).sub;
+      const notification = await prisma.notification.findUnique({
+        where: { id: request.params.id },
+        select: { id: true, userId: true, readAt: true },
+      });
+      if (!notification || notification.userId !== userId) {
+        throw new HttpError(404, 'NOT_FOUND', '通知不存在');
+      }
+      if (!notification.readAt) {
+        await prisma.notification.update({
+          where: { id: notification.id },
+          data: { readAt: new Date() },
+        });
+      }
+      return { success: true };
+    },
+  );
 
   // 收到的点赞：他人对当前用户已发布画廊作品的点赞（排除自己点的），按时间倒序分页
   app.get('/api/users/me/received-likes', { preHandler: [app.authenticate] }, async (request) => {

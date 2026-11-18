@@ -3,8 +3,10 @@ import { Check, Flag, RefreshCw, ShieldCheck, X } from 'lucide-react';
 import {
   REPORT_STATUSES,
   REPORT_STATUS_LABELS,
+  PENALTY_TYPE_LABELS,
   type CommentReport,
   type CommentReportListResponse,
+  type ReportResolveResponse,
   type ReportStatus,
 } from '@spaceport/shared';
 import { ApiError, api } from '../../lib/api';
@@ -95,8 +97,17 @@ export default function AdminReportsPage() {
     if (!resolving) return;
     setActingId(resolving.id);
     try {
-      await api.post(`/api/admin/comment-reports/${resolving.id}/resolve`);
-      toast.success('已删除被举报评论');
+      const result = await api.post<ReportResolveResponse>(
+        `/api/admin/comment-reports/${resolving.id}/resolve`,
+      );
+      // 处罚详情联动展示：核实后系统按阶梯规则自动处罚（警告/禁言/封号）
+      toast.success(
+        result.penalty
+          ? `已删除被举报评论，并触发处罚：${PENALTY_TYPE_LABELS[result.penalty.type]}${
+              result.penalty.durationDays ? ` ${result.penalty.durationDays} 天` : ''
+            }（用户 #${result.penalty.userUid ?? '—'}）`
+          : '已删除被举报评论，未触发新处罚',
+      );
       setResolving(null);
       void fetchReports(page, status);
     } catch (error) {

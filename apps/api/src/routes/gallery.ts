@@ -15,6 +15,7 @@ import {
   serializeGalleryImage,
 } from '../lib/serialize';
 import { requireUser } from '../plugins/auth';
+import { assertNotMuted } from '../services/penalty';
 import { notifyCommentReportInBackground } from '../services/qq-bot/notify';
 import { prisma } from '../prisma';
 
@@ -174,6 +175,8 @@ export function publicGalleryRoutes(app: FastifyInstance) {
       const imageId = request.params.id;
       await requirePublishedImage(imageId);
       const body = galleryCommentSchema.parse(request.body ?? {});
+      // 禁言处罚生效期间禁止发言/评论
+      await assertNotMuted(userId);
 
       const comment = await prisma.galleryComment.create({
         data: { imageId, userId, content: body.content },

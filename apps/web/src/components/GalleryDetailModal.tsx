@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Flag, Heart, Loader2, MessageSquare, SendHorizontal, Trash2 } from 'lucide-react';
+import { Flag, Heart, Loader2, MessageSquare, MessageSquareWarning, SendHorizontal, Trash2 } from 'lucide-react';
 import {
   spaceHref,
   type GalleryCommentItem,
@@ -14,7 +14,7 @@ import ConfirmDialog from './ConfirmDialog';
 import GalleryLikeButton from './GalleryLikeButton';
 import Modal from './Modal';
 import { useLoginDialog } from './LoginModal';
-import { useAuth } from '../lib/auth';
+import { useAuth, isUserMuted } from '../lib/auth';
 import { useToast } from './Toast';
 
 const COMMENT_PAGE_SIZE = 10;
@@ -414,36 +414,43 @@ export default function GalleryDetailModal({
 
             <div className="border-t border-white/10 p-3">
               {user ? (
-                <form
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    void submitComment();
-                  }}
-                >
-                  <textarea
-                    value={content}
-                    onChange={(event) => setContent(event.target.value)}
-                    rows={2}
-                    maxLength={MAX_COMMENT_LENGTH}
-                    disabled={submitting}
-                    placeholder="写下你的评论…"
-                    className="input-base resize-none"
-                  />
-                  <div className="mt-2 flex items-center justify-between gap-2">
-                    <span className="font-mono text-[10px] text-muted/70">
-                      {content.trim().length}/{MAX_COMMENT_LENGTH}
-                    </span>
-                    <Button
-                      type="submit"
-                      size="sm"
-                      loading={submitting}
-                      disabled={!content.trim()}
-                      icon={<SendHorizontal className="h-3.5 w-3.5" />}
-                    >
-                      发布评论
-                    </Button>
+                isUserMuted(user) ? (
+                  <div className="rounded-xl border border-amber/40 bg-amber/10 px-3 py-2.5 text-xs text-amber">
+                    <MessageSquareWarning className="mr-1.5 inline h-3.5 w-3.5" />
+                    您处于禁言处罚中，至 {user.penalty?.mutedUntil ? formatDateTime(user.penalty.mutedUntil) : ''} 解除，期间禁止发布评论。
                   </div>
-                </form>
+                ) : (
+                  <form
+                    onSubmit={(event) => {
+                      event.preventDefault();
+                      void submitComment();
+                    }}
+                  >
+                    <textarea
+                      value={content}
+                      onChange={(event) => setContent(event.target.value)}
+                      rows={2}
+                      maxLength={MAX_COMMENT_LENGTH}
+                      disabled={submitting}
+                      placeholder="写下你的评论…"
+                      className="input-base resize-none"
+                    />
+                    <div className="mt-2 flex items-center justify-between gap-2">
+                      <span className="font-mono text-[10px] text-muted/70">
+                        {content.trim().length}/{MAX_COMMENT_LENGTH}
+                      </span>
+                      <Button
+                        type="submit"
+                        size="sm"
+                        loading={submitting}
+                        disabled={!content.trim()}
+                        icon={<SendHorizontal className="h-3.5 w-3.5" />}
+                      >
+                        发布评论
+                      </Button>
+                    </div>
+                  </form>
+                )
               ) : (
                 <Button variant="secondary" size="sm" onClick={openLogin}>
                   登录后即可评论

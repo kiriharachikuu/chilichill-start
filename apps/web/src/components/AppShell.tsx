@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   LogOut,
   Heart,
+  Gavel,
 } from 'lucide-react';
 import { useAuth } from '../lib/auth';
 import { onUnauthorized } from '../lib/api';
@@ -242,7 +243,7 @@ export default function AppShell() {
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="flex items-center gap-1.5">
                 <Heart className="h-3.5 w-3.5 text-amber" />
-                厚嘴唇空间站 · 非官方 ChiliChill 粉丝导航
+                厚嘴唇空间站 · ChiliChill 粉丝导航
               </span>
               <Link to="/about" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
                 关于本站
@@ -252,6 +253,9 @@ export default function AppShell() {
               </Link>
               <Link to="/privacy" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
                 隐私政策
+              </Link>
+              <Link to="/blackhouse" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
+                小黑屋
               </Link>
             </p>
             <p>内容由粉丝投稿，本站不代表官方立场</p>

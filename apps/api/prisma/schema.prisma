@@ -27,6 +27,10 @@ model User {
   city         String?
   passwordHash String
   role         String       @default("USER")
+  // 举报处罚状态（举报核实后自动维护）：有效警告次数 / 有效禁言次数 / 永久封号时间（撤销时回退重算）
+  warningCount Int          @default(0)
+  muteCount    Int          @default(0)
+  bannedAt     DateTime?
   // 注册时对用户协议/隐私政策的同意记录（合规留痕）
   policyConsentAt      DateTime?
   policyConsentVersion String?
@@ -42,6 +46,10 @@ model User {
   reportsHandled  CommentReport[]  @relation("ReportHandler")
   auditLogs       AdminAuditLog[]  @relation("AuditActor")
   settingsUpdated SystemSetting[]  @relation("SettingUpdater")
+  penalties       Penalty[]        @relation("PenaltyUser")
+  penaltiesRevoked Penalty[]       @relation("PenaltyRevoker")
+  penaltiesOperated Penalty[]     @relation("PenaltyOperator")
+  notifications   Notification[]   @relation("NotificationUser")
 }
 
 model Group {
@@ -276,6 +284,53 @@ model AdminAuditLog {
 
   @@index([createdAt])
   @@index([targetType, targetId])
+}
+
+// 举报处罚记录：举报核实后按阶梯规则自动生成，也是小黑屋公示页的数据源。
+// type ∈ WARNING / MUTE / BAN（SQLite 无 enum，取值由 @spaceport/shared 约束）；
+// MUTE 记录 durationDays（3/7/15）与 endsAt，到期靠时间比较自动解除，无需定时任务；
+// BAN（永久封号）endsAt 为空。撤销仅置位撤销字段并回退用户计数，原记录不可篡改。
+model Penalty {
+  id                String    @id @default(cuid())
+  user              User      @relation("PenaltyUser", fields: [userId], references: [id], onDelete: Cascade)
+  userId            String
+  type              String
+  durationDays      Int?
+  startedAt         DateTime  @default(now())
+  endsAt            DateTime?
+  // 违规事由：举报原因快照
+  reason            String
+  // 核实凭证：关联举报记录 id 列表（JSON 数组字符串）
+  evidenceReportIds String    @default("[]")
+  // 触发处罚的操作人（核实举报的审核员/管理员）
+  operator          User?     @relation("PenaltyOperator", fields: [operatorId], references: [id], onDelete: SetNull)
+  operatorId        String?
+  // 撤销信息：置位后该记录不再计入阶梯与小黑屋公示
+  revokedAt         DateTime?
+  revokedBy         User?     @relation("PenaltyRevoker", fields: [revokedById], references: [id], onDelete: SetNull)
+  revokedById       String?
+  revokeReason      String?
+  createdAt         DateTime  @default(now())
+
+  @@index([userId, type])
+  @@index([userId, createdAt])
+  @@index([revokedAt, startedAt])
+  @@index([type, endsAt])
+}
+
+// 站内系统通知：处罚触发/撤销时向被处罚用户发送告知详情。
+model Notification {
+  id        String    @id @default(cuid())
+  user      User      @relation("NotificationUser", fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  type      String
+  title     String
+  content   String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, createdAt])
+  @@index([userId, readAt])
 }
 
 // 注册邮箱验证码：同一邮箱只保留一条记录，重发会覆盖旧验证码并重置错误次数。

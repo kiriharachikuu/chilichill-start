@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { Role } from '@spaceport/shared';
+import type { Role, UserPenaltyState } from '@spaceport/shared';
 import { ApiError, api, formatApiError } from './api';
 
 export type { Role };
@@ -15,6 +15,18 @@ export interface AuthUser {
   province: string | null;
   city: string | null;
   role: Role;
+  /** 处罚状态：禁言/封号时前端据此禁用评论框与投稿入口（旧缓存可能缺失，按可空处理） */
+  penalty?: UserPenaltyState;
+}
+
+/** 是否处于禁言处罚中（mutedUntil 在未来则视为生效中） */
+export function isUserMuted(user: AuthUser | null): boolean {
+  if (!user?.penalty?.mutedUntil) return false;
+  return new Date(user.penalty.mutedUntil).getTime() > Date.now();
+}
+
+export function isUserBanned(user: AuthUser | null): boolean {
+  return Boolean(user?.penalty?.banned);
 }
 
 interface MeResponse {

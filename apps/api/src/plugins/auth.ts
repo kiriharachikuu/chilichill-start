@@ -64,6 +64,30 @@ async function loadRoleWithAudit(request: FastifyRequest, userId: string): Promi
 }
 
 export function registerAuthPlugin(app: FastifyInstance) {
+  // 封号用户拦截：永久封号期间禁止登录及一切需登录的操作。
+  // 每次鉴权实时读库，封号立即生效（不依赖 token 过期）；用户已删除时旧 token 同步失效。
+  const loadAccountGate = async (request: FastifyRequest, userId: string): Promise<void> => {
+    let account: { bannedAt: Date | null } | null;
+    try {
+      account = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { bannedAt: true },
+      });
+    } catch (error) {
+      request.log.error(
+        { err: error, userId, url: request.url, method: request.method, ip: request.ip },
+        '[鉴权] 读取账号封禁状态失败（数据库异常），判定为服务暂时不可用',
+      );
+      throw new HttpError(503, 'SERVICE_UNAVAILABLE', '登录状态校验暂时不可用，请稍后再试');
+    }
+    if (!account) {
+      throw new HttpError(401, 'UNAUTHORIZED', '账号不存在或已注销');
+    }
+    if (account.bannedAt) {
+      throw new HttpError(403, 'ACCOUNT_BANNED', '该账号已被永久封禁，禁止登录及一切操作');
+    }
+  };
+
   const authenticate = async (request: FastifyRequest) => {
     try {
       await request.jwtVerify();
@@ -74,6 +98,7 @@ export function registerAuthPlugin(app: FastifyInstance) {
     if (!request.user) {
       throw new HttpError(401, 'UNAUTHORIZED', '请先登录');
     }
+    await loadAccountGate(request, request.user.sub);
   };
 
   const optionalAuthenticate = async (request: FastifyRequest) => {

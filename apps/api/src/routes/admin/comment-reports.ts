@@ -5,6 +5,7 @@ import { recordAudit } from '../../lib/audit';
 import { HttpError } from '../../lib/errors';
 import { optionalEnumQuery, pageParams, pageQuery, pageSizeQuery } from '../../lib/query';
 import { requireUser } from '../../plugins/auth';
+import { applyPenaltyForVerifiedReport } from '../../services/penalty';
 import { prisma } from '../../prisma';
 import type { CommentReport, CommentReportListResponse, ReportStatus } from '@spaceport/shared';
 import type { Prisma } from '../../generated/prisma/client';
@@ -75,8 +76,8 @@ export function adminCommentReportRoutes(app: FastifyInstance) {
     return response;
   });
 
-  // 处理举报：删除被举报评论（即时生效、不可恢复）。
-  // 认领举报与删除评论包同一事务：避免“举报已处理但评论还在”的中间态
+  // 处理举报：删除被举报评论（即时生效、不可恢复），并按阶梯规则自动触发处罚。
+  // 认领举报、删除评论与处罚落库包同一事务：避免“举报已处理但评论还在/处罚未生效”的中间态
   app.post<{ Params: { id: string } }>(
     '/api/admin/comment-reports/:id/resolve',
     { preHandler: [app.requireReviewer] },
@@ -117,15 +118,30 @@ export function adminCommentReportRoutes(app: FastifyInstance) {
           tx,
         );
 
-        return tx.commentReport.findUnique({
+        // 举报核实无误 → 按用户有效处罚记录自动匹配处罚等级（警告/阶梯禁言/永久封号）
+        const penaltyOutcome = report.commentUserId
+          ? await applyPenaltyForVerifiedReport(
+              {
+                userId: report.commentUserId,
+                reason: report.reason,
+                evidenceReportIds: [report.id],
+                operatorId: user.sub,
+                operatorNickname: user.nickname ?? '',
+              },
+              tx,
+            )
+          : { applied: false, summary: null };
+
+        const refreshed = await tx.commentReport.findUnique({
           where: { id: report.id },
           include: { reporter: reporterSelect, handledBy: handlerSelect },
         });
+        return { refreshed, penalty: penaltyOutcome.summary };
       });
-      if (!updated) {
+      if (!updated.refreshed) {
         throw new HttpError(404, 'NOT_FOUND', '举报记录不存在');
       }
-      return { item: serializeReport(updated) };
+      return { item: serializeReport(updated.refreshed), penalty: updated.penalty };
     },
   );
 

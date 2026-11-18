@@ -7,6 +7,7 @@ import { serializeSubmission } from '../lib/serialize';
 import { loadTargetFor, loadTargetsFor } from '../lib/target';
 import { getEntity } from '../modules/entities';
 import { requireUser } from '../plugins/auth';
+import { assertNotMuted } from '../services/penalty';
 import { notifySubmissionInBackground } from '../services/qq-bot/notify';
 import { prisma } from '../prisma';
 
@@ -25,6 +26,9 @@ export function submissionsRoutes(app: FastifyInstance) {
     const user = requireUser(request);
     const body = submissionCreateSchema.parse(request.body ?? {});
     const handler = getEntity(body.entityType);
+
+    // 禁言处罚生效期间禁止发布内容（投稿）
+    await assertNotMuted(user.sub);
 
     // 画廊只支持新增投稿：UPDATE 模式在这里直接拒绝，避免进入审核队列后无法落地
     if (body.entityType === 'GALLERY' && body.mode === 'UPDATE') {
@@ -129,6 +133,9 @@ export function submissionsRoutes(app: FastifyInstance) {
     async (request) => {
       const user = requireUser(request);
       const body = resubmitSchema.parse(request.body ?? {});
+
+      // 禁言处罚生效期间禁止发布内容（重新提交投稿）
+      await assertNotMuted(user.sub);
 
       const submission = await prisma.submission.findUnique({ where: { id: request.params.id } });
       if (!submission) {

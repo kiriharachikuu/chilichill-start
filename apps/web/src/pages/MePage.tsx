@@ -10,6 +10,7 @@ import {
   MessageSquare,
   Pencil,
   RefreshCw,
+  ShieldAlert,
   UserRound,
   UsersRound,
   type LucideIcon,
@@ -61,6 +62,7 @@ import Pagination from '../components/Pagination';
 import ProfileEditor from '../components/ProfileEditor';
 import SectionHeading from '../components/SectionHeading';
 import StatusBadge from '../components/StatusBadge';
+import PenaltyStatusModule from '../components/PenaltyStatusModule';
 import { useToast } from '../components/Toast';
 
 const SUBMISSION_PAGE_SIZE = 10;
@@ -72,7 +74,7 @@ const SUBMISSION_TABS: { key: 'ALL' | SubmissionStatus; label: string }[] = [
   { key: 'REJECTED', label: '已驳回' },
 ];
 
-type ModuleKey = 'PROFILE' | 'SUBMISSIONS' | 'INTERACTIONS';
+type ModuleKey = 'PROFILE' | 'SUBMISSIONS' | 'INTERACTIONS' | 'PENALTY';
 
 const MODULES: { key: ModuleKey; label: string; icon: LucideIcon; description: string }[] = [
   {
@@ -92,6 +94,12 @@ const MODULES: { key: ModuleKey; label: string; icon: LucideIcon; description: s
     label: '审核进度',
     icon: Inbox,
     description: '追踪每一条信号的审核进度，被驳回的投稿可修改后重新发送。',
+  },
+  {
+    key: 'PENALTY',
+    label: '处罚与通知',
+    icon: ShieldAlert,
+    description: '查看你的处罚状态（警告/禁言/封号）与系统通知，举报核实后系统会按阶梯规则自动处罚并在此告知。',
   },
 ];
 
@@ -879,6 +887,7 @@ export default function MePage() {
     PROFILE: false,
     SUBMISSIONS: false,
     INTERACTIONS: true,
+    PENALTY: false,
   });
 
   if (authLoading) {
@@ -940,6 +949,12 @@ export default function MePage() {
       {visited.INTERACTIONS ? (
         <div className={activeModule === 'INTERACTIONS' ? '' : 'hidden'}>
           <ReceivedModule />
+        </div>
+      ) : null}
+
+      {visited.PENALTY ? (
+        <div className={activeModule === 'PENALTY' ? '' : 'hidden'}>
+          <PenaltyStatusModule />
         </div>
       ) : null}
     </div>

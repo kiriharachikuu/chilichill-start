@@ -8,6 +8,8 @@ import { prisma } from '../prisma';
 import { consumeRegistrationCode, sendRegistrationCode } from '../services/email-verification';
 import { getStoredRegistrationSettings } from '../services/registration-settings';
 import { resetPassword, sendPasswordResetCode } from '../services/password-reset';
+import { getActiveMute } from '../services/penalty';
+import type { UserPenaltyState } from '@spaceport/shared';
 
 const COOKIE_NAME = 'spaceport_token';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
@@ -30,7 +32,7 @@ const registerSchema = emailSchema.extend({
 });
 
 // 隐私政策当前版本：内容有实质变更时更新（对应前端 /privacy 页 POLICY_VERSION）
-const POLICY_VERSION = 'v1.0';
+export const POLICY_VERSION = 'v1.0';
 
 const loginSchema = z.object({
   email: z.string().trim().email('邮箱格式不正确'),
@@ -54,9 +56,27 @@ interface PublicUser {
   province: string | null;
   city: string | null;
   role: string;
+  penalty: UserPenaltyState;
 }
 
-function toPublicUser(user: PublicUser): PublicUser {
+interface UserRow {
+  id: string;
+  uid: number | null;
+  email: string;
+  nickname: string;
+  avatarUrl: string | null;
+  bannerUrl: string | null;
+  bio: string | null;
+  province: string | null;
+  city: string | null;
+  role: string;
+  warningCount: number;
+  muteCount: number;
+  bannedAt: Date | null;
+  createdAt: Date;
+}
+
+function toPublicUser(user: UserRow, mutedUntil: string | null = null): PublicUser {
   return {
     id: user.id,
     uid: user.uid,
@@ -68,17 +88,25 @@ function toPublicUser(user: PublicUser): PublicUser {
     province: user.province,
     city: user.city,
     role: user.role,
+    penalty: {
+      banned: Boolean(user.bannedAt),
+      mutedUntil,
+      warningCount: user.warningCount,
+      muteCount: user.muteCount,
+    },
   };
 }
 
 // 分配 6 位纯数字 uid：取当前最大 uid + 1（100001 起），冲突时重试。
-async function createUserWithUid(data: {
+// role 供管理后台代注册时指定用户组，公开注册固定为默认 USER。
+export async function createUserWithUid(data: {
   email: string;
   nickname: string;
   passwordHash: string;
   policyConsentAt: Date;
   policyConsentVersion: string;
-}): Promise<PublicUser> {
+  role?: string;
+}): Promise<UserRow> {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const last = await prisma.user.findFirst({ orderBy: { uid: 'desc' }, select: { uid: true } });
     const uid = (last?.uid ?? 100000) + 1;
@@ -214,8 +242,14 @@ export function authRoutes(app: FastifyInstance) {
       throw new HttpError(401, 'INVALID_CREDENTIALS', '邮箱或密码不正确');
     }
 
+    // 封号用户禁止登录（放在密码验证通过之后提示，避免向未授权者泄露封号状态）
+    if (user.bannedAt) {
+      throw new HttpError(403, 'ACCOUNT_BANNED', '该账号已被永久封禁，禁止登录');
+    }
+
     issueToken(app, reply, user);
-    return { user: toPublicUser(user) };
+    const activeMute = await getActiveMute(user.id);
+    return { user: toPublicUser(user, activeMute?.endsAt ? activeMute.endsAt.toISOString() : null) };
   });
 
   app.post('/api/auth/logout', async (_request, reply) => {
@@ -244,7 +278,12 @@ export function authRoutes(app: FastifyInstance) {
       return { user: null };
     }
 
+    // optionalAuthenticate 不做封号拦截：封号用户仍能读取自身信息（含处罚状态），便于前端展示封禁提示
     const user = await prisma.user.findUnique({ where: { id: request.user.sub } });
-    return { user: user ? toPublicUser(user) : null };
+    if (!user) {
+      return { user: null };
+    }
+    const activeMute = await getActiveMute(user.id);
+    return { user: toPublicUser(user, activeMute?.endsAt ? activeMute.endsAt.toISOString() : null) };
   });
 }
