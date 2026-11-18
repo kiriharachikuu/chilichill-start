@@ -1,13 +1,9 @@
 import { useMemo, useEffect, useRef, useState } from 'react';
 import {
-  AtSign,
   GraduationCap,
-  Heart,
   Link2,
   MapPin,
-  MessageCircle,
   MoreHorizontal,
-  Ticket,
   Users,
   Wand2,
 } from 'lucide-react';
@@ -64,12 +60,12 @@ const PLATFORM_OPTIONS: {
   value: GroupPlatform;
   label: string;
   desc: string;
-  icon: typeof Users;
+  icon: string;
 }[] = [
-  { value: 'QQ', label: 'QQ 群', desc: '填群号自动抓官方头像', icon: MessageCircle },
-  { value: 'WEIBO', label: '微博粉丝群', desc: '上传二维码与头像即可', icon: AtSign },
-  { value: 'XIUDONG', label: '秀动粉丝群', desc: '上传二维码与头像即可', icon: Ticket },
-  { value: 'XIAOHONGSHU', label: '小红书粉丝群', desc: '上传二维码与头像即可', icon: Heart },
+  { value: 'QQ', label: 'QQ 群', desc: '填群号自动抓官方头像', icon: '/icons/qq.png' },
+  { value: 'WEIBO', label: '微博粉丝群', desc: '上传二维码与头像即可', icon: '/icons/weibo.png' },
+  { value: 'XIUDONG', label: '秀动粉丝群', desc: '上传二维码与头像即可', icon: '/icons/xiudong.png' },
+  { value: 'XIAOHONGSHU', label: '小红书粉丝群', desc: '上传二维码与头像即可', icon: '/icons/xiaohongshu.png' },
 ];
 
 const NEEDS_CITY: GroupType[] = ['REGION', 'COLLEGE'];
@@ -156,7 +152,6 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
         </p>
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
           {PLATFORM_OPTIONS.map((option) => {
-            const Icon = option.icon;
             const active = value.platform === option.value;
             return (
               <button
@@ -177,7 +172,11 @@ export default function GroupFields({ value, onChange, meta, errors = {} }: Grou
                     : 'border-white/10 bg-white/[0.04] text-ink hover:-translate-y-0.5 hover:border-white/25'
                 }`}
               >
-                <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${active ? '' : 'text-muted'}`} />
+                <img
+                  src={option.icon}
+                  alt=""
+                  className={`mt-0.5 h-5 w-5 shrink-0 rounded-md ${active ? '' : 'opacity-60'}`}
+                />
                 <span>
                   <span className="block text-sm font-medium">{option.label}</span>
                   <span className={`mt-0.5 block text-[11px] ${active ? 'text-ink/80' : 'text-muted'}`}>

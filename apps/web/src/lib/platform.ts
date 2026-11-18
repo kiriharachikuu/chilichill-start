@@ -1,12 +1,56 @@
-import type { GroupPlatform } from '@spaceport/shared';
+import { GROUP_PLATFORMS, type GroupPlatform } from '@spaceport/shared';
 
-// 平台品牌色与短标：徽标、CTA、二维码弹窗文案共用这一份元数据
-export const PLATFORM_BRAND: Record<GroupPlatform, { label: string; short: string; color: string }> = {
-  QQ: { label: 'QQ 群', short: 'QQ', color: '#12B7F5' },
-  WEIBO: { label: '微博群', short: '微博', color: '#E6162D' },
-  XIUDONG: { label: '秀动群', short: '秀动', color: '#FF7A00' },
-  XIAOHONGSHU: { label: '小红书群', short: '小红书', color: '#FF2442' },
+// ─── 平台图标库 ──────────────────────────────────────────────────────────────
+// 粉丝群四平台（GROUP_PLATFORMS）+ 预置社媒/音乐平台，共 12 个：图标已随包发布（public/icons），
+// 后续功能（站点分类、活动平台、外链识别、页脚社交入口等）可直接按 key 取用。
+export const SOCIAL_PLATFORMS = [
+  'BILIBILI',
+  'DOUYIN',
+  'WECHAT',
+  'NETEASE_MUSIC',
+  'KUGOU_MUSIC',
+  'QQ_MUSIC',
+  'TWITTER_X',
+  'YOUTUBE',
+] as const;
+export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
+
+export const ALL_PLATFORMS = [...GROUP_PLATFORMS, ...SOCIAL_PLATFORMS] as const;
+export type AllPlatform = (typeof ALL_PLATFORMS)[number];
+
+// 标签元数据同构（label 展示名 / short 短标 / color 品牌色 / icon 图标路径）；
+// 粉丝群平台的 label 不带「群」业务后缀，徽标文案由下方 PLATFORM_BRAND 单独覆盖
+export const ALL_PLATFORM_BRAND: Record<
+  AllPlatform,
+  { label: string; short: string; color: string; icon: string }
+> = {
+  QQ: { label: 'QQ', short: 'QQ', color: '#12B7F5', icon: '/icons/qq.png' },
+  WEIBO: { label: '微博', short: '微博', color: '#E6162D', icon: '/icons/weibo.png' },
+  XIUDONG: { label: '秀动', short: '秀动', color: '#FF7A00', icon: '/icons/xiudong.png' },
+  XIAOHONGSHU: { label: '小红书', short: '小红书', color: '#FF2442', icon: '/icons/xiaohongshu.png' },
+  BILIBILI: { label: '哔哩哔哩', short: 'B站', color: '#FB7299', icon: '/icons/bilibili.png' },
+  DOUYIN: { label: '抖音', short: '抖音', color: '#FE2C55', icon: '/icons/douyin.png' },
+  WECHAT: { label: '微信', short: '微信', color: '#07C160', icon: '/icons/wechat.png' },
+  NETEASE_MUSIC: { label: '网易云音乐', short: '网易云', color: '#C20C0C', icon: '/icons/netease-music.png' },
+  KUGOU_MUSIC: { label: '酷狗音乐', short: '酷狗', color: '#4A8CF5', icon: '/icons/kugou-music.png' },
+  QQ_MUSIC: { label: 'QQ音乐', short: 'QQ音乐', color: '#24D3A0', icon: '/icons/qq-music.png' },
+  TWITTER_X: { label: 'Twitter / X', short: 'X', color: '#1D9BF0', icon: '/icons/twitter-x.png' },
+  YOUTUBE: { label: 'YouTube', short: 'YouTube', color: '#FF0000', icon: '/icons/youtube.png' },
 };
+
+// 粉丝群平台徽标元数据：自图标库派生，label 换成带「群」的业务文案
+export const PLATFORM_BRAND: Record<GroupPlatform, { label: string; short: string; color: string; icon: string }> = {
+  QQ: { ...ALL_PLATFORM_BRAND.QQ, label: 'QQ 群' },
+  WEIBO: { ...ALL_PLATFORM_BRAND.WEIBO, label: '微博群' },
+  XIUDONG: { ...ALL_PLATFORM_BRAND.XIUDONG, label: '秀动群' },
+  XIAOHONGSHU: { ...ALL_PLATFORM_BRAND.XIAOHONGSHU, label: '小红书群' },
+};
+
+// 按平台 key（粉丝群平台或预置社媒平台）取标签元数据，未知 key 返回 null
+export function platformBrandOf(key: string): { label: string; short: string; color: string; icon: string } | null {
+  if (key in ALL_PLATFORM_BRAND) return ALL_PLATFORM_BRAND[key as AllPlatform];
+  return null;
+}
 
 export type JoinMethod =
   | { kind: 'LINK'; label: string }
