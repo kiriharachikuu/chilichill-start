@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { loadMeta, readCachedMeta } from '../lib/meta';
 import SectionHeading from '../components/SectionHeading';
+import ChangelogSection from '../components/ChangelogSection';
 
 function PolicySection({
   icon,
@@ -186,6 +187,8 @@ export default function AboutPage() {
             </p>
           ) : null}
         </PolicySection>
+
+        <ChangelogSection />
 
         {hasSponsor ? (
           <PolicySection icon={<HeartHandshake className="h-4 w-4 text-amber" />} title="赞助支持">
