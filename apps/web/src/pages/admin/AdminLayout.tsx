@@ -105,7 +105,8 @@ export default function AdminLayout() {
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[13rem_1fr]">
-        <aside className="min-w-0 lg:sticky lg:top-24 lg:self-start">
+        {/* 菜单固定不随页面滚动：移动端吸附在顶部头部（h-14）下方，桌面端跟随滚动 */}
+        <aside className="sticky top-14 z-20 min-w-0 bg-space-50 py-2 lg:top-24 lg:z-auto lg:bg-transparent lg:py-0 lg:self-start">
           <nav className="custom-scrollbar flex gap-1.5 overflow-x-auto rounded-2xl border border-white/8 bg-white/[0.03] p-1.5 lg:flex-col lg:overflow-visible">
             {visibleGroups.map((group) => (
               <Fragment key={group.title}>
