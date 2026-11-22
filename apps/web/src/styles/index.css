@@ -82,8 +82,8 @@ body {
   @apply bg-space-50 text-ink antialiased;
   font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
   text-rendering: optimizeLegibility;
-  /* 消除移动端双击缩放延迟，点击交互更跟手 */
-  touch-action: manipulation;
+  /* 移动端完全禁止缩放：仅保留单向平移，禁用双指缩放与双击缩放 */
+  touch-action: pan-x pan-y;
 }
 
 ::selection {
@@ -183,5 +183,15 @@ input[type='number'] {
 /* 旧渐变统一转为官网天蓝的低饱和平面色 */
 [style*='linear-gradient'] {
   background-image: none !important;
+}
+
+/* 移动端完全禁止缩放：
+   iOS 聚焦字号小于 16px 的输入控件时会自动放大页面，这里统一提到 16px 规避 */
+@media (max-width: 767px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
 }
 

@@ -2,7 +2,10 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, minimum-scale=1.0, maximum-scale=1.0, user-scalable=no, shrink-to-fit=no, viewport-fit=cover"
+    />
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="theme-color" content="#F4F4F1" />
     <title>厚嘴唇空间站 · ChiliChill 粉丝导航</title>
@@ -16,6 +19,28 @@
           }
           if (t === 'dark') document.documentElement.classList.add('theme-dark');
         } catch (e) { /* ignore */ }
+      })();
+    </script>
+    <script>
+      /* 移动端完全禁止缩放：iOS Safari 会忽略 user-scalable=no / maximum-scale，
+         需要在事件层拦截双指手势、多指触摸与 Ctrl+滚轮缩放 */
+      (function () {
+        var block = function (e) { e.preventDefault(); };
+        ['gesturestart', 'gesturechange', 'gestureend'].forEach(function (type) {
+          document.addEventListener(type, block, { passive: false });
+        });
+        document.addEventListener('touchstart', function (e) {
+          if (e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+        document.addEventListener('touchmove', function (e) {
+          if (e.touches.length > 1) e.preventDefault();
+        }, { passive: false });
+        /* 触屏设备上的触控板捏合缩放；桌面端保留正常 Ctrl+滚轮 */
+        if ('ontouchstart' in window || navigator.maxTouchPoints > 0) {
+          document.addEventListener('wheel', function (e) {
+            if (e.ctrlKey) e.preventDefault();
+          }, { passive: false });
+        }
       })();
     </script>
     <style>
