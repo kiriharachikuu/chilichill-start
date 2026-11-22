@@ -45,6 +45,7 @@ import {
 import Badge from '../../components/Badge';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
+import Checkbox from '../../components/Checkbox';
 import EmptyState from '../../components/EmptyState';
 import { Field, Textarea } from '../../components/Field';
 import GroupFields from '../../components/forms/GroupFields';
@@ -675,16 +676,15 @@ export default function AdminReviewPage() {
         <>
           {status === 'PENDING' ? (
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-3">
-              <label className="flex cursor-pointer items-center gap-2 text-xs text-muted">
-                <input
-                  type="checkbox"
-                  className="h-4 w-4 cursor-pointer accent-amber-600"
-                  checked={allSelected}
-                  onChange={toggleAll}
-                  aria-label="全选本页待审核投稿"
-                />
+              <Checkbox
+                className="text-xs"
+                checked={allSelected}
+                indeterminate={selectedIds.size > 0 && !allSelected}
+                onChange={toggleAll}
+                aria-label="全选本页待审核投稿"
+              >
                 全选本页（{data.items.length} 条）
-              </label>
+              </Checkbox>
               {selectedIds.size > 0 ? (
                 <div className="flex flex-wrap items-center gap-2">
                   <span className="text-xs text-muted">已选 {selectedIds.size} 条</span>
@@ -723,15 +723,13 @@ export default function AdminReviewPage() {
             {data.items.map((item) => (
               <div key={item.id} className="flex items-stretch transition hover:bg-white/[0.04]">
                 {status === 'PENDING' ? (
-                  <label className="flex cursor-pointer items-center pl-4 pr-0.5">
-                    <input
-                      type="checkbox"
-                      className="h-4 w-4 cursor-pointer accent-amber-600"
+                  <div className="flex cursor-pointer items-center pl-4 pr-0.5">
+                    <Checkbox
                       checked={selectedIds.has(item.id)}
                       onChange={() => toggleSelect(item.id)}
                       aria-label={`选择投稿：${submissionSummary(item.payload)}`}
                     />
-                  </label>
+                  </div>
                 ) : null}
                 <button
                   type="button"

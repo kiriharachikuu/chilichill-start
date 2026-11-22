@@ -50,6 +50,9 @@ model User {
   penaltiesRevoked Penalty[]       @relation("PenaltyRevoker")
   penaltiesOperated Penalty[]     @relation("PenaltyOperator")
   notifications   Notification[]   @relation("NotificationUser")
+  oauthCodes      OAuthAuthorizationCode[] @relation("OAuthCodeUser")
+  oauthTokens     OAuthAccessToken[]       @relation("OAuthTokenUser")
+  oauthAppsCreated OAuthApp[]              @relation("OAuthAppCreator")
 }
 
 model Group {
@@ -389,4 +392,58 @@ model BotBoundGroup {
   source      String   @default("GROUP_ADD_ROBOT")
   lastSeenAt  DateTime @default(now())
   createdAt   DateTime @default(now())
+}
+
+// 站外接入应用：管理员在后台创建，第三方网站凭 client_id/secret 走 OAuth2 授权码登录。
+// status ∈ ACTIVE / DISABLED（SQLite 无 enum，取值由 @spaceport/shared 约束）。
+// clientSecret 只存 SHA-256 摘要，明文仅在创建/重置时返回一次。
+model OAuthApp {
+  id               String   @id @default(cuid())
+  name             String
+  description      String?
+  logoUrl          String?
+  homepageUrl      String?
+  clientId         String   @unique
+  clientSecretHash String
+  // 回调地址白名单：JSON 字符串数组，授权时精确匹配
+  redirectUris     String   @default("[]")
+  status           String   @default("ACTIVE")
+  createdBy        User?    @relation("OAuthAppCreator", fields: [createdById], references: [id])
+  createdById      String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  codes            OAuthAuthorizationCode[]
+  tokens           OAuthAccessToken[]
+}
+
+// OAuth2 授权码：一次性、10 分钟有效，只存 SHA-256 摘要。
+// redirectUri 冗余存储，令牌交换时校验一致性（OAuth2 规范要求）。
+model OAuthAuthorizationCode {
+  id          String    @id @default(cuid())
+  app         OAuthApp  @relation(fields: [appId], references: [id], onDelete: Cascade)
+  appId       String
+  user        User      @relation("OAuthCodeUser", fields: [userId], references: [id], onDelete: Cascade)
+  userId      String
+  codeHash    String    @unique
+  redirectUri String
+  expiresAt   DateTime
+  consumedAt  DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([appId, userId])
+}
+
+// 站外访问令牌：不透明随机串，只存摘要；到期或吊销后失效，app 禁用/用户封号时实时拒绝。
+model OAuthAccessToken {
+  id        String    @id @default(cuid())
+  app       OAuthApp  @relation(fields: [appId], references: [id], onDelete: Cascade)
+  appId     String
+  user      User      @relation("OAuthTokenUser", fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([appId, userId])
 }

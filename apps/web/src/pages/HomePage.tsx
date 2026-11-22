@@ -111,7 +111,7 @@ export default function HomePage() {
 
   return (
     <>
-      <section className="relative flex h-[calc(100svh-3.5rem)] min-h-[560px] items-center justify-center overflow-hidden border-b-2 border-ink bg-ink lg:h-screen">
+      <section className="theme-static relative flex h-[calc(100svh-3.5rem)] min-h-[560px] items-center justify-center overflow-hidden border-b-2 border-ink bg-ink lg:h-screen">
         <video
           className="absolute inset-0 h-full w-full object-cover"
           src="/media/chilichill-2026-tour-teaser.mp4"

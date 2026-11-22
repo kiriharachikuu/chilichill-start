@@ -5,6 +5,7 @@ import {
   CalendarDays,
   ClipboardCheck,
   Flag,
+  KeyRound,
   Gavel,
   CloudCog,
   Layers,
@@ -55,6 +56,7 @@ const ADMIN_NAV_GROUPS: { title: string; items: AdminNavItem[] }[] = [
     title: '成员与系统',
     items: [
       { to: '/admin/users', label: '用户管理', icon: Users, permission: PERMISSIONS.USER_MANAGE },
+      { to: '/admin/oauth-apps', label: '接入应用', icon: KeyRound, permission: PERMISSIONS.SYSTEM_MANAGE },
       { to: '/admin/settings', label: '系统设置', icon: CloudCog, permission: PERMISSIONS.SYSTEM_MANAGE },
     ],
   },
@@ -104,10 +106,11 @@ export default function AdminLayout() {
         </div>
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-[13rem_1fr]">
-        {/* 菜单固定不随页面滚动：移动端吸附在顶部头部（h-14）下方，桌面端跟随滚动 */}
-        <aside className="sticky top-14 z-20 min-w-0 bg-space-50 py-2 lg:top-24 lg:z-auto lg:bg-transparent lg:py-0 lg:self-start">
-          <nav className="custom-scrollbar flex gap-1.5 overflow-x-auto rounded-2xl border border-white/8 bg-white/[0.03] p-1.5 lg:flex-col lg:overflow-visible">
+      {/* 移动端保持普通文档流（菜单才能在整个页面高度内吸附），桌面端才切双栏网格 */}
+      <div className="lg:grid lg:grid-cols-[13rem_1fr] lg:items-start lg:gap-6">
+        {/* 菜单固定不随页面滚动：移动端吸附在顶部头部（h-14）下方，桌面端吸附在视口顶部 */}
+        <aside className="sticky top-14 z-20 mb-4 min-w-0 bg-space-50 py-2 lg:top-0 lg:z-auto lg:mb-0 lg:bg-transparent lg:py-4 lg:self-start">
+          <nav className="custom-scrollbar flex gap-1.5 overflow-x-auto rounded-2xl border border-white/8 bg-white/[0.03] p-1.5 lg:max-h-[calc(100vh-2rem)] lg:flex-col lg:overflow-y-auto">
             {visibleGroups.map((group) => (
               <Fragment key={group.title}>
                 {/* 分组标题仅桌面侧栏展示，移动端横向滚动条保持平铺 */}

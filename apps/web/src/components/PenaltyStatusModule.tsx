@@ -151,7 +151,7 @@ export default function PenaltyStatusModule() {
               <div className="flex items-start gap-2.5 rounded-xl border border-ink bg-coral/10 px-3.5 py-3 text-sm text-ink">
                 <ShieldBan className="mt-0.5 h-4 w-4 shrink-0" />
                 <span className="flex flex-wrap items-center gap-1.5">
-                  账号已被
+                  通行证已被
                   <Badge tone="violet">{PENALTY_TYPE_LABELS.BAN}</Badge>
                   （{status.bannedAt ? `生效于 ${formatDateTime(status.bannedAt)}` : ''}），禁止登录及一切操作。
                 </span>
@@ -171,7 +171,7 @@ export default function PenaltyStatusModule() {
             {!status.banned && !status.activeMute ? (
               <p className="flex items-center gap-2 text-sm text-mint">
                 <ShieldAlert className="h-4 w-4" />
-                当前无生效处罚，账号状态正常。
+                当前无生效处罚，通行证状态正常。
               </p>
             ) : null}
             <div className="grid grid-cols-2 gap-3 sm:max-w-md">

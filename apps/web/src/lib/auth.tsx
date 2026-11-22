@@ -36,7 +36,8 @@ interface MeResponse {
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
-  login: (email: string, password: string) => Promise<AuthUser>;
+  /** remember 为 true 时 60 天内免登录，否则关闭浏览器后自动退出 */
+  login: (email: string, password: string, remember?: boolean) => Promise<AuthUser>;
   /** code 为 null 表示注册无需邮箱验证码（后台开关关闭） */
   register: (email: string, password: string, nickname: string, code: string | null, agreedPolicy?: boolean) => Promise<AuthUser>;
   logout: () => Promise<void>;
@@ -129,8 +130,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [refresh]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
-      const data = await api.post<{ user: AuthUser }>('/api/auth/login', { email, password });
+    async (email: string, password: string, remember = false) => {
+      const data = await api.post<{ user: AuthUser }>('/api/auth/login', { email, password, remember });
       applyUser(data.user);
       return data.user;
     },

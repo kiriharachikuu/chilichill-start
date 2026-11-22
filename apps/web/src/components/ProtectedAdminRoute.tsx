@@ -23,14 +23,14 @@ export default function ProtectedAdminRoute() {
       <EmptyState
         icon={ShieldAlert}
         title="权限不足 · 无法进入控制舱"
-        description="这里只对运营团队与审核组成员开放。你可以继续浏览群舱与站点，或使用相应账号登录。"
+        description="这里只对运营团队与审核组成员开放。你可以继续浏览群舱与站点，或使用对应权限的空间站通行证登录。"
         action={
           <div className="flex flex-wrap justify-center gap-2">
             <Link to="/" className={buttonClass({ variant: 'primary', size: 'sm' })}>
               返回首页
             </Link>
             <Link to="/login" className={buttonClass({ variant: 'secondary', size: 'sm' })}>
-              切换账号
+              切换通行证
             </Link>
           </div>
         }

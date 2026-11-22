@@ -19,6 +19,7 @@ import { adminTagsRoutes } from './routes/admin/tags';
 import { adminUsersRoutes } from './routes/admin/users';
 import { adminCommentReportRoutes } from './routes/admin/comment-reports';
 import { adminPenaltyRoutes } from './routes/admin/penalties';
+import { adminOAuthAppsRoutes } from './routes/admin/oauth-apps';
 import { adminSettingsRoutes } from './routes/admin/settings';
 import { adminActivitiesRoutes } from './routes/admin/activities';
 import { adminGalleryRoutes } from './routes/admin/gallery';
@@ -32,6 +33,7 @@ import { qrcodeRoutes } from './routes/qrcode';
 import { publicSitesRoutes } from './routes/sites';
 import { seoRoutes } from './routes/seo';
 import { submissionsRoutes } from './routes/submissions';
+import { oauthRoutes } from './routes/oauth';
 import { tagsRoutes } from './routes/tags';
 import { uploadRoutes } from './routes/uploads';
 import { userRoutes } from './routes/users';
@@ -115,6 +117,7 @@ export async function buildApp() {
   metaRoutes(app);
   seoRoutes(app);
   submissionsRoutes(app);
+  oauthRoutes(app);
   qqBotWebhookRoutes(app);
   adminTagsRoutes(app);
   adminRulesRoutes(app);
@@ -127,6 +130,7 @@ export async function buildApp() {
   adminCommentReportRoutes(app);
   adminPenaltyRoutes(app);
   adminSettingsRoutes(app);
+  adminOAuthAppsRoutes(app);
   publicPenaltyRoutes(app);
 
   // 每日数据日报调度：按后台配置的时间（上海时区）注册；失败不阻塞启动

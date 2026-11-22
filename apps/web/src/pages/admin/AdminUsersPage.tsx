@@ -624,7 +624,7 @@ export default function AdminUsersPage() {
         }}
         eyebrow="NEW MEMBER"
         title="注册新用户"
-        description="由站长代为创建账号，UID 留空时自动分配，操作会记录审计日志。"
+        description="由站长代为创建空间站通行证，UID 留空时自动分配，操作会记录审计日志。"
         footer={
           <div className="flex justify-end gap-3">
             <Button variant="ghost" size="sm" onClick={() => setCreateOpen(false)} disabled={creating}>

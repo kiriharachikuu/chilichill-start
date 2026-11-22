@@ -3,9 +3,9 @@ import { Link } from 'react-router-dom';
 import SectionHeading from '../components/SectionHeading';
 
 // 政策版本号：内容有实质变更时更新此处，并同步更新「更新提示」与「生效日期」
-const POLICY_VERSION = 'v2.0';
-const UPDATED_DATE = '2026-11-18';
-const EFFECTIVE_DATE = '2026-11-18';
+const POLICY_VERSION = 'v3.0';
+const UPDATED_DATE = '2026-11-23';
+const EFFECTIVE_DATE = '2026-11-23';
 
 function Clause({ children }: { children: ReactNode }) {
   return <p className="text-sm leading-relaxed text-muted">{children}</p>;
@@ -48,7 +48,8 @@ export default function PrivacyPage() {
         <section className="border border-amber/40 bg-amber-50 px-5 py-4">
           <h2 className="text-sm font-black text-ink">更新提示</h2>
           <p className="mt-2 text-sm leading-relaxed text-muted">
-            为更充分地保障您的个人信息权益，我们参照行业通行的个人信息保护规范，对本政策的结构和个人信息处理规则进行了系统化调整。若您有任何问题或建议，请通过本政策第
+            本站已上线「开放平台」授权登录服务：您可以使用空间站通行证登录经站长审核的第三方接入网站。为此，我们更新了个人信息共享规则（详见第
+            1.4 条与第 2.1 条）并新增了相应的授权数据处理说明。若您有任何问题或建议，请通过本政策第
             8 条所述方式联系我们。
           </p>
         </section>
@@ -65,6 +66,11 @@ export default function PrivacyPage() {
               本政策中的“我们”，指厚嘴唇空间站的运营团队——一个由歌迷自发搭建并维护的非官方、非营利粉丝信息导航项目。
             </Clause>
             <Clause>
+              <Em>
+                本政策所称“空间站通行证”指您在本站注册获得的账号身份，以下统称“账号”；本政策中的“账号”均指空间站通行证。
+              </Em>
+            </Clause>
+            <Clause>
               <Em>其中要点如下：</Em>
             </Clause>
             <Clause>
@@ -75,6 +81,11 @@ export default function PrivacyPage() {
             </Clause>
             <Clause>
               <Em>• 您主动投稿并经审核通过的内容将在站内公开展示，公开展示后的信息任何访问者均可见。</Em>
+            </Clause>
+            <Clause>
+              <Em>
+                • 您使用空间站通行证授权登录第三方网站时，仅向对方提供用户 ID、uid、昵称、头像等基础信息，不提供邮箱等隐私信息，且每次授权都需要您在授权页显式确认。
+              </Em>
             </Clause>
             <Clause>
               <Em>• 您可以随时查看、更正自己的账号资料，撤回投稿，或申请彻底删除账号及全部关联数据。</Em>
@@ -103,7 +114,7 @@ export default function PrivacyPage() {
           </Clause>
           <Clause>
             <Em>1.1 账号注册与登录：</Em>
-            当您注册本站账号时，我们会收集您的<Em>邮箱地址</Em>（用于发送验证码完成注册验证与密码重置）以及您自行设置的<Em>昵称、头像</Em>。本站不收集您的姓名、身份证号等实名身份信息，不接触您邮箱账号的密码。
+            当您注册账号（空间站通行证）时，我们会收集您的<Em>邮箱地址</Em>（用于发送验证码完成注册验证与密码重置）以及您自行设置的<Em>昵称、头像</Em>。本站不收集您的姓名、身份证号等实名身份信息，不接触您邮箱账号的密码。
           </Clause>
           <Clause>
             <Em>1.2 投稿内容：</Em>
@@ -116,15 +127,21 @@ export default function PrivacyPage() {
             您登录后，我们通过 JWT Cookie（HttpOnly）维持您的登录状态。登录凭证不写入浏览器本地存储，且仅与您的本站账号关联。
           </Clause>
           <Clause>
-            <Em>1.4 访问日志：</Em>
+            <Em>1.4 开放平台授权：</Em>
+            当您使用空间站通行证授权登录第三方接入网站时，我们会在您于授权页显式确认后生成<Em>一次性授权码与访问令牌</Em>
+            。授权码与令牌在我们的系统中仅以加密摘要形式存储、无法还原明文，用于令牌签发、吊销与失效管理（例如您被封禁或接入应用被禁用时令牌立即失效）。授权码
+            10 分钟内一次性有效，访问令牌有效期为 7 天。
+          </Clause>
+          <Clause>
+            <Em>1.5 访问日志：</Em>
             为保障服务安全、排查故障与防范滥用，服务器会记录基础访问日志，包括<Em>请求时间、IP 地址、User-Agent</Em>。该等日志仅用于安全与运维目的，<Em>不作用户行为画像、个性化推荐或广告用途。</Em>
           </Clause>
           <Clause>
-            <Em>1.5 站内通知：</Em>
+            <Em>1.6 站内通知：</Em>
             为向您同步投稿审核结果等内容，我们会通过站内消息向您发送通知。我们不向您的邮箱发送营销类邮件。
           </Clause>
           <Clause>
-            <Em>1.6 免征得同意的情形：</Em>
+            <Em>1.7 免征得同意的情形：</Em>
             根据相关法律法规及国家标准，以下情形中，我们收集、使用您的个人信息无需另行征得您的授权同意：
           </Clause>
           <Clause>1) 为履行法定职责或法定义务所必需；</Clause>
@@ -133,7 +150,7 @@ export default function PrivacyPage() {
           <Clause>4) 根据法律法规在合理的范围内处理您自行公开或其他已经合法公开的个人信息；</Clause>
           <Clause>5) 法律法规规定的其他情形。</Clause>
           <Clause>
-            <Em>1.7 主动获取：</Em>
+            <Em>1.8 主动获取：</Em>
             目前，我们不会主动从任何第三方获取您的个人信息。未来如因业务发展需要间接获取的，我们会要求来源方确保已征得您的同意并保证信息来源合法。
           </Clause>
         </Chapter>
@@ -148,6 +165,12 @@ export default function PrivacyPage() {
           </Clause>
           <Clause>
             （2）<Em>对象存储：</Em>您投稿上传的图片文件存储于腾讯云对象存储服务（COS），仅限站内引用展示。
+          </Clause>
+          <Clause>
+            （3）<Em>开放平台授权：</Em>
+            当您在授权页显式确认后，我们会向您授权的第三方接入应用提供您的基础信息，包括
+            <Em>用户 ID、uid、昵称、头像</Em>
+            ，不包含邮箱等隐私信息。接入方对上述信息的使用受其自身用户协议与隐私政策约束；接入应用被站长禁用或您的账号状态异常时，我们立即停止其令牌的效力。您拒绝授权不影响您继续使用本站全部功能。
           </Clause>
           <Clause>
             <Em>2.2 公开披露：</Em>

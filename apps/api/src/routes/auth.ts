@@ -13,6 +13,8 @@ import type { UserPenaltyState } from '@spaceport/shared';
 
 const COOKIE_NAME = 'spaceport_token';
 const COOKIE_MAX_AGE = 60 * 60 * 24 * 7;
+// 勾选「60 天内免登录」时下发 60 天持久 Cookie
+const REMEMBER_MAX_AGE = 60 * 60 * 24 * 60;
 
 const emailSchema = z.object({
   email: z.string().trim().email('邮箱格式不正确').max(120, '邮箱过长'),
@@ -32,11 +34,13 @@ const registerSchema = emailSchema.extend({
 });
 
 // 隐私政策当前版本：内容有实质变更时更新（对应前端 /privacy 页 POLICY_VERSION）
-export const POLICY_VERSION = 'v1.0';
+export const POLICY_VERSION = 'v3.0';
 
 const loginSchema = z.object({
   email: z.string().trim().email('邮箱格式不正确'),
   password: z.string().min(1, '请输入密码'),
+  // 勾选「60 天内免登录」时下发持久 Cookie，否则为会话 Cookie（关闭浏览器即失效）
+  remember: z.boolean().optional(),
 });
 
 const resetPasswordSchema = z.object({
@@ -127,10 +131,15 @@ export async function createUserWithUid(data: {
   throw new HttpError(500, 'UID_ASSIGN_FAILED', 'uid 分配失败，请重试');
 }
 
-function issueToken(app: FastifyInstance, reply: FastifyReply, user: { id: string; role: string; nickname: string }) {
+function issueToken(
+  app: FastifyInstance,
+  reply: FastifyReply,
+  user: { id: string; role: string; nickname: string },
+  maxAge: number | null = COOKIE_MAX_AGE,
+) {
   const token = app.jwt.sign(
     { sub: user.id, role: user.role, nickname: user.nickname },
-    { expiresIn: COOKIE_MAX_AGE },
+    { expiresIn: maxAge ?? COOKIE_MAX_AGE },
   );
 
   reply.setCookie(COOKIE_NAME, token, {
@@ -138,7 +147,8 @@ function issueToken(app: FastifyInstance, reply: FastifyReply, user: { id: strin
     httpOnly: true,
     sameSite: 'lax',
     secure: env.nodeEnv === 'production',
-    maxAge: COOKIE_MAX_AGE,
+    // maxAge 为 null 时不下发 Max-Age，生成会话 Cookie：关闭浏览器后自动退出登录
+    ...(maxAge === null ? {} : { maxAge }),
   });
 }
 
@@ -247,7 +257,8 @@ export function authRoutes(app: FastifyInstance) {
       throw new HttpError(403, 'ACCOUNT_BANNED', '该账号已被永久封禁，禁止登录');
     }
 
-    issueToken(app, reply, user);
+    // 勾选「60 天内免登录」→ 持久 Cookie；未勾选 → 会话 Cookie，关闭浏览器后自动登出
+    issueToken(app, reply, user, body.remember ? REMEMBER_MAX_AGE : null);
     const activeMute = await getActiveMute(user.id);
     return { user: toPublicUser(user, activeMute?.endsAt ? activeMute.endsAt.toISOString() : null) };
   });

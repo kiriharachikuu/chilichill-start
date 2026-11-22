@@ -85,7 +85,7 @@ const MODULES: { key: ModuleKey; label: string; icon: LucideIcon; description: s
   },
   {
     key: 'PROFILE',
-    label: '账号资料',
+    label: '通行证资料',
     icon: UserRound,
     description: '维护你在空间站的昵称、头像、坐标和自我介绍。',
   },
@@ -908,7 +908,7 @@ export default function MePage() {
       <SectionHeading
         eyebrow="My Orbit"
         title="个人中心"
-        description="管理账号资料、追踪投稿审核进度，查看你收到的点赞与评论。"
+        description="管理通行证资料、追踪投稿审核进度，查看你收到的点赞与评论。"
       />
 
       <nav

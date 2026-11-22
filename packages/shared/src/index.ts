@@ -1071,3 +1071,66 @@ export interface AdminAuditLog {
 }
 
 export interface AdminAuditLogListResponse extends Paginated<AdminAuditLog> {}
+
+// ===== OAuth2 通行证站外授权登录 =====
+
+export const OAUTH_APP_STATUSES = ['ACTIVE', 'DISABLED'] as const;
+export type OAuthAppStatus = (typeof OAUTH_APP_STATUSES)[number];
+export const OAUTH_APP_STATUS_LABELS: Record<OAuthAppStatus, string> = {
+  ACTIVE: '已启用',
+  DISABLED: '已禁用',
+};
+
+// 授权码 10 分钟有效（OAuth2 常见做法）；访问令牌 7 天有效，到期第三方需引导重新授权
+export const OAUTH_CODE_TTL_SECONDS = 600;
+export const OAUTH_TOKEN_TTL_SECONDS = 60 * 60 * 24 * 7;
+
+// 授权范围固定为基础信息（id/uid/昵称/头像），预留在协议层面可扩展
+export const OAUTH_SCOPE_BASIC = 'basic';
+export const OAUTH_SCOPES = [OAUTH_SCOPE_BASIC] as const;
+
+// 回调地址：必须是 http(s) 绝对地址且不含 fragment（fragment 无法送达服务端）
+export const oauthRedirectUriSchema = z
+  .string()
+  .trim()
+  .min(1, '回调地址不能为空')
+  .max(500, '回调地址过长')
+  .refine((value) => {
+    try {
+      const url = new URL(value);
+      return (url.protocol === 'https:' || url.protocol === 'http:') && !url.hash;
+    } catch {
+      return false;
+    }
+  }, '回调地址必须是 http(s) 绝对地址且不含 # 片段');
+
+// 后台接入应用创建/编辑入参
+export const oauthAppInputSchema = z.object({
+  name: z.string().trim().min(1, '应用名称不能为空').max(40, '应用名称最多 40 个字'),
+  description: optionalTextField(200, '应用描述'),
+  logoUrl: optionalTextField(500, '应用图标地址'),
+  homepageUrl: optionalTextField(500, '应用主页地址'),
+  redirectUris: z
+    .array(oauthRedirectUriSchema)
+    .min(1, '至少配置一个回调地址')
+    .max(10, '回调地址最多 10 个'),
+  status: z.enum(OAUTH_APP_STATUSES).default('ACTIVE'),
+});
+export type OAuthAppInput = z.infer<typeof oauthAppInputSchema>;
+
+// 授权确认入参（授权页提交）
+export const oauthAuthorizeConfirmSchema = z.object({
+  clientId: z.string().trim().min(1, '缺少 client_id'),
+  redirectUri: oauthRedirectUriSchema,
+  state: z.string().min(1, '缺少 state').max(200, 'state 过长'),
+  scope: z.enum(OAUTH_SCOPES).default(OAUTH_SCOPE_BASIC),
+  approve: z.boolean({ error: '请选择是否授权' }),
+});
+
+// 站外访问令牌可获取的用户基础信息
+export interface OAuthBasicUser {
+  id: string;
+  uid: number | null;
+  nickname: string;
+  avatarUrl: string | null;
+}

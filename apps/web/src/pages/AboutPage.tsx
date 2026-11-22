@@ -17,6 +17,13 @@ import {
 import { loadMeta, readCachedMeta } from '../lib/meta';
 import SectionHeading from '../components/SectionHeading';
 import ChangelogSection from '../components/ChangelogSection';
+import { buttonClass } from '../components/Button';
+
+// 组件库 npm 包名与下载产物路径（产物由独立仓库 dist 构建后同步到 public/）
+const STYLES_PACKAGE = '@chilichill/styles';
+const STYLES_CSS_URL = '/chilichill-ui.css';
+// 预留：GitHub 仓库发布后填入完整地址，为空时按钮渲染为禁用态
+const GITHUB_URL = '';
 
 function PolicySection({
   icon,
@@ -167,6 +174,46 @@ export default function AboutPage() {
             使用本站即表示同意 
             <Link to="/terms" className="text-amber underline underline-offset-2">《用户协议》</Link>
             ，相关权利义务以协议全文为准。
+          </p>
+        </PolicySection>
+
+        <PolicySection icon={<PenSquare className="h-4 w-4 text-amber" />} title="开放设计系统">
+          <p>
+            本站的界面设计语言沉淀为独立的开源样式库
+            <strong className="text-ink font-mono text-[13px]">{STYLES_PACKAGE}</strong>
+            ：纯 CSS + 设计令牌 + BEM 命名，零运行时依赖，覆盖按钮、表单、表格、弹层等 30+ 通用组件，内置夜间主题，覆盖 CSS 变量即可整体换肤。
+          </p>
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {['纯 CSS', '零依赖', '设计令牌', 'BEM 命名', '暗色主题', '可独立发布'].map((item) => (
+              <span key={item} className="border border-space-200 bg-space-50 px-2 py-0.5 text-xs text-muted">
+                {item}
+              </span>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-2 pt-2">
+            <a href={STYLES_CSS_URL} download className={buttonClass({ variant: 'secondary', size: 'sm' })}>
+              下载样式库 CSS
+            </a>
+            {GITHUB_URL ? (
+              <a
+                href={GITHUB_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className={buttonClass({ variant: 'ghost', size: 'sm' })}
+              >
+                GitHub 仓库
+              </a>
+            ) : (
+              <button type="button" disabled className={buttonClass({ variant: 'ghost', size: 'sm' })}>
+                GitHub 仓库（即将开放）
+              </button>
+            )}
+          </div>
+          <p className="pt-1 text-xs text-muted">
+            开发者安装：
+            <code className="ml-1 border border-space-200 bg-space-50 px-1.5 py-0.5 font-mono text-[11px] text-ink">
+              npm i {STYLES_PACKAGE}
+            </code>
           </p>
         </PolicySection>
 

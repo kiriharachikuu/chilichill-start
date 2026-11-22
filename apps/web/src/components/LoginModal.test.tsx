@@ -30,8 +30,8 @@ vi.mock('../lib/auth', async (importOriginal) => {
     useAuth: () => ({
       user: null,
       loading: false,
-      login: async (email: string, password: string) => {
-        const data = (await mocks.post('/api/auth/login', { email, password })) as { user: unknown };
+      login: async (email: string, password: string, remember?: boolean) => {
+        const data = (await mocks.post('/api/auth/login', { email, password, remember })) as { user: unknown };
         return data.user;
       },
       register: mocks.register,
@@ -138,9 +138,27 @@ describe('LoginModal', () => {
     expect(postMock).toHaveBeenCalledWith('/api/auth/login', {
       email: 'user@test.dev',
       password: 'Password123',
+      remember: true,
     });
     expect(await screen.findByText('登舱成功，祝你探索愉快')).toBeInTheDocument();
     expect(setLoginOpen).toHaveBeenCalledWith(false);
+  });
+
+  it('取消勾选「60 天内免登录」时按会话登录提交 remember=false', async () => {
+    postMock.mockResolvedValueOnce({ user: { id: 'u1', nickname: '体验用户' } });
+    await renderLoginModal(true);
+    const user = userEvent.setup();
+
+    await user.click(screen.getByRole('checkbox', { name: /60 天内免登录/ }));
+    await user.type(screen.getByPlaceholderText('you@example.com'), 'user@test.dev');
+    await user.type(screen.getByPlaceholderText('输入密码'), 'Password123');
+    await user.click(screen.getByRole('button', { name: '登舱' }));
+
+    expect(postMock).toHaveBeenCalledWith('/api/auth/login', {
+      email: 'user@test.dev',
+      password: 'Password123',
+      remember: false,
+    });
   });
 
   it('登录失败（ApiError）时在表单内展示服务端错误信息，弹窗保持打开', async () => {

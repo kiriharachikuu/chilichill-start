@@ -14,7 +14,7 @@ export default function ExternalRedirectPage() {
       <div className="border-2 border-ink bg-white">
         <div className="flex items-center gap-2.5 border-b-2 border-ink bg-coral/10 px-5 py-3.5">
           <TriangleAlert className="h-5 w-5 shrink-0 text-coral" />
-          <p className="text-sm font-black">请注意您的账号和财产安全</p>
+          <p className="text-sm font-black">请注意您的通行证和财产安全</p>
         </div>
 
         {target ? (

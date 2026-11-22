@@ -5,6 +5,8 @@ import { api, formatApiError } from '../lib/api';
 import { useAuth } from '../lib/auth';
 import { loadMeta } from '../lib/meta';
 import Button from '../components/Button';
+import Alert from '../components/Alert';
+import Checkbox from '../components/Checkbox';
 import EmailCodeField from '../components/EmailCodeField';
 import Modal from '../components/Modal';
 import { Field, Input } from '../components/Field';
@@ -59,6 +61,8 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const [code, setCode] = useState('');
   // 合规要求：注册默认不勾选协议，未勾选时注册按钮置灰
   const [agreed, setAgreed] = useState(false);
+  // 60 天内免登录：勾选下发持久 Cookie，未勾选则关闭浏览器后自动退出
+  const [remember, setRemember] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [serverError, setServerError] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -99,11 +103,11 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
     setSubmitting(true);
     try {
       if (tab === 'login') {
-        await login(email.trim(), password);
+        await login(email.trim(), password, remember);
         toast.success('登舱成功，祝你探索愉快');
       } else if (tab === 'register') {
         await register(email.trim(), password, nickname.trim(), emailCodeRequired ? code : null, true);
-        toast.success('账号已创建，欢迎加入空间站');
+        toast.success('通行证已创建，欢迎加入空间站');
       } else {
         await api.post<void>('/api/auth/reset-password', { email: email.trim(), code, password });
         toast.success('密码已重置，请用新密码登录');
@@ -209,20 +213,30 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           </div>
         </Field>
 
-        {serverError ? (
-          <div className="border border-coral/35 bg-coral/10 px-3.5 py-2.5 text-xs leading-relaxed text-coral">
-            {serverError}
-          </div>
+        {tab === 'login' ? (
+          <Checkbox
+            className="items-start text-xs leading-relaxed text-muted"
+            checked={remember}
+            onChange={(event) => setRemember(event.target.checked)}
+          >
+            <span>
+              60 天内免登录
+              <span className="mt-0.5 block text-[11px] text-muted/70">
+                未勾选此选项将在关闭浏览器后自动退出登录
+              </span>
+            </span>
+          </Checkbox>
         ) : null}
 
+        {serverError ? <Alert variant="danger">{serverError}</Alert> : null}
+
         {tab === 'register' ? (
-          <label className="flex cursor-pointer items-start gap-2 text-xs leading-relaxed text-muted">
-            <input
-              type="checkbox"
-              checked={agreed}
-              onChange={(event) => setAgreed(event.target.checked)}
-              className="mt-0.5 h-4 w-4 shrink-0 accent-amber"
-            />
+          <Checkbox
+            className="items-start text-xs leading-relaxed text-muted"
+            checked={agreed}
+            onChange={(event) => setAgreed(event.target.checked)}
+            aria-label="同意用户协议与隐私政策"
+          >
             <span>
               我已阅读并同意
               {/* 协议页是完整页面，弹窗不关会被 z-[80] 遮罩挡住；表单状态留在组件里，回来重开不丢 */}
@@ -235,7 +249,7 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
               </Link>
               {errors.agreed ? <span className="mt-1 block text-coral">{errors.agreed}</span> : null}
             </span>
-          </label>
+          </Checkbox>
         ) : null}
 
         <Button
@@ -252,7 +266,7 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
       <p className="mt-4 text-center text-xs text-muted">
         {tab === 'login' ? (
           <>
-            还没有账号？{' '}
+            还没有通行证？{' '}
             <button type="button" onClick={() => setTab('register')} className="font-bold text-amber-600 hover:underline">
               注册一个
             </button>
@@ -288,7 +302,7 @@ function LoginModal({ open, onClose }: { open: boolean; onClose: () => void }) {
           </>
         ) : (
           <>
-            已有账号？{' '}
+            已有通行证？{' '}
             <button type="button" onClick={() => setTab('login')} className="font-bold text-amber-600 hover:underline">
               直接登录
             </button>

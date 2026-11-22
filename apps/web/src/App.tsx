@@ -14,10 +14,12 @@ import ActivityDetailPage from './pages/ActivityDetailPage';
 import GalleryPage from './pages/GalleryPage';
 import SpacePage from './pages/SpacePage';
 import LoginPage from './pages/LoginPage';
+import OAuthAuthorizePage from './pages/OAuthAuthorizePage';
 import ExternalRedirectPage from './pages/ExternalRedirectPage';
 import SubmitPage from './pages/SubmitPage';
 import MePage from './pages/MePage';
 import AboutPage from './pages/AboutPage';
+import DevelopersPage from './pages/DevelopersPage';
 import PrivacyPage from './pages/PrivacyPage';
 import TermsPage from './pages/TermsPage';
 import NotFoundPage from './pages/NotFoundPage';
@@ -34,6 +36,7 @@ const AdminSettingsPage = lazy(() => import('./pages/admin/AdminSettingsPage'));
 const AdminTagsPage = lazy(() => import('./pages/admin/AdminTagsPage'));
 const AdminRulesPage = lazy(() => import('./pages/admin/AdminRulesPage'));
 const AdminUsersPage = lazy(() => import('./pages/admin/AdminUsersPage'));
+const AdminOAuthAppsPage = lazy(() => import('./pages/admin/AdminOAuthAppsPage'));
 
 // ===== 首屏 boot 层控制 =====
 // 计时起点为 JS 模块初始化（HTML 静态层在此之前已由纯 CSS 播放）
@@ -95,8 +98,10 @@ export default function App() {
               <Route path="me" element={<MePage />} />
               <Route path="space/:uid" element={<SpacePage />} />
               <Route path="login" element={<LoginPage />} />
+              <Route path="oauth/authorize" element={<OAuthAuthorizePage />} />
               <Route path="redirect" element={<ExternalRedirectPage />} />
               <Route path="about" element={<AboutPage />} />
+              <Route path="developers" element={<DevelopersPage />} />
               <Route path="privacy" element={<PrivacyPage />} />
               <Route path="terms" element={<TermsPage />} />
 
@@ -112,6 +117,7 @@ export default function App() {
                   <Route path="tags" element={<AdminTagsPage />} />
                   <Route path="rules" element={<AdminRulesPage />} />
                   <Route path="users" element={<AdminUsersPage />} />
+                  <Route path="oauth-apps" element={<AdminOAuthAppsPage />} />
                 </Route>
               </Route>
 

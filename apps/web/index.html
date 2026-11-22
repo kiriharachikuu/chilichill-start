@@ -2,10 +2,22 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <link rel="icon" type="image/png" href="/logo.png" />
     <meta name="theme-color" content="#F4F4F1" />
     <title>厚嘴唇空间站 · ChiliChill 粉丝导航</title>
+    <script>
+      /* 防 FOUC：绘制前根据 localStorage 记忆 / 系统偏好挂载夜间模式类 */
+      (function () {
+        try {
+          var t = localStorage.getItem('cc-theme');
+          if (t !== 'light' && t !== 'dark') {
+            t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+          }
+          if (t === 'dark') document.documentElement.classList.add('theme-dark');
+        } catch (e) { /* ignore */ }
+      })();
+    </script>
     <style>
       /* ===== 首屏 boot 层：暗色 CRT 终端风（空间站配色）===== */
       html:has(#boot-screen:not(.is-done)) {

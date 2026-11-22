@@ -82,6 +82,24 @@ describe('POST /api/auth/login', () => {
     expect(cookie?.value.length).toBeGreaterThan(20);
     expect(cookie?.httpOnly).toBe(true);
   });
+
+  it('未勾选免登录时下发会话 Cookie（无 Max-Age）', async () => {
+    const res = await login(TEST_EMAIL, TEST_PASSWORD);
+    expect(res.statusCode, res.body).toBe(200);
+    const cookie = res.cookies.find((entry) => entry.name === 'spaceport_token');
+    expect(cookie?.maxAge).toBeUndefined();
+  });
+
+  it('勾选 60 天免登录时下发 60 天持久 Cookie', async () => {
+    const res = await app.inject({
+      method: 'POST',
+      url: '/api/auth/login',
+      payload: { email: TEST_EMAIL, password: TEST_PASSWORD, remember: true },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+    const cookie = res.cookies.find((entry) => entry.name === 'spaceport_token');
+    expect(cookie?.maxAge).toBe(60 * 60 * 24 * 60);
+  });
 });
 
 describe('GET /api/auth/me', () => {

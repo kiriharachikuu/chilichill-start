@@ -5,7 +5,20 @@
 @tailwind utilities;
 
 :root {
+  /* 中性色令牌（rgb 三元组，供 Tailwind <alpha-value> 使用）
+     夜间模式通过 html.theme-dark 覆盖这一层实现整体换肤 */
   color-scheme: light;
+  --c-page: 244 244 241;        /* 页面底色 space-50 */
+  --c-surface: 255 255 255;     /* 面板底色 white */
+  --c-surface-alt: 233 233 229; /* 悬停/骨架底色 space-100 */
+  --c-subtle: 250 250 248;      /* 更浅的层叠底色（旧 bg-white/[0.02]） */
+  --c-border: 216 216 211;      /* 常规边框 space-200 */
+  --c-faint: 184 184 179;       /* 弱化标注 space-300 */
+  --c-text-soft: 85 85 85;      /* 次级文字 space-600 */
+  --c-text-soft-2: 63 63 63;    /* 再次级文字 space-700 */
+  --c-ink: 17 17 17;            /* 主文字 / 主色块 space-950 */
+  --c-muted: 102 102 102;       /* 辅助文字 muted */
+  --c-tint: 237 245 255;        /* 强调色浅底 amber-50 */
   --space-50: #f4f4f1;
   --space-100: #e9e9e5;
   --space-200: #d8d8d3;
@@ -26,14 +39,51 @@
   --violet: #609ee9;
 }
 
+/* 夜间模式：仅覆盖中性色令牌，强调蓝在暗底上保持可读 */
+html.theme-dark {
+  color-scheme: dark;
+  --c-page: 17 17 17;
+  --c-surface: 26 26 26;
+  --c-surface-alt: 38 38 38;
+  --c-subtle: 20 20 20;
+  --c-border: 46 46 46;
+  --c-faint: 110 110 110;
+  --c-text-soft: 181 181 176;
+  --c-text-soft-2: 216 216 211;
+  --c-ink: 244 244 241;
+  --c-muted: 143 143 141;
+  --c-tint: 22 32 44;
+}
+
+/* 固定亮色区域（视频/图片叠加层）：锁定亮色令牌，不随夜间模式换色 */
+.theme-static {
+  color-scheme: light;
+  --c-page: 244 244 241;
+  --c-surface: 255 255 255;
+  --c-surface-alt: 233 233 229;
+  --c-subtle: 250 250 248;
+  --c-border: 216 216 211;
+  --c-faint: 184 184 179;
+  --c-text-soft: 85 85 85;
+  --c-text-soft-2: 63 63 63;
+  --c-ink: 17 17 17;
+  --c-muted: 102 102 102;
+  --c-tint: 237 245 255;
+}
+
 html {
   scroll-behavior: smooth;
+  /* 移动端：禁止系统级字号自动调整，配合 viewport user-scalable=no 禁止缩放 */
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
 }
 
 body {
   @apply bg-space-50 text-ink antialiased;
   font-family: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei', Arial, sans-serif;
   text-rendering: optimizeLegibility;
+  /* 消除移动端双击缩放延迟，点击交互更跟手 */
+  touch-action: manipulation;
 }
 
 ::selection {
@@ -41,12 +91,12 @@ body {
   color: #ffffff;
 }
 
-/* 极简平面卡片：白线、细边、无玻璃模糊与发光 */
+/* 极简平面卡片：细边、无玻璃模糊与发光（颜色走令牌，夜间模式自动适配） */
 .glass-card {
   position: relative;
-  border: 1px solid #d8d8d3;
+  border: 1px solid rgb(var(--c-border));
   border-radius: 0;
-  background: #ffffff;
+  background: rgb(var(--c-surface));
   box-shadow: none;
   overflow: hidden;
 }
@@ -61,10 +111,10 @@ body {
   height: 6px;
 }
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: #f4f4f1;
+  background: rgb(var(--c-page));
 }
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: #b8b8b3;
+  background: rgb(var(--c-faint));
   border-radius: 0;
 }
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
@@ -88,22 +138,22 @@ input[type='number'] {
   -moz-appearance: textfield;
 }
 
-/* 平面化背景兼容：旧的深色/透明类在白底上转为清晰的线框 */
+/* 平面化背景兼容：旧的深色/透明类按当前主题映射为清晰的线框表面 */
 .bg-white\/\[0\.04\],
 .bg-white\/\[0\.05\],
 .bg-white\/\[0\.06\] {
-  background-color: #f4f4f1 !important;
+  background-color: rgb(var(--c-surface-alt)) !important;
 }
 
 .bg-white\/\[0\.02\] {
-  background-color: #fafaf8 !important;
+  background-color: rgb(var(--c-subtle)) !important;
 }
 
 .border-white\/8,
 .border-white\/10,
 .border-white\/12,
 .border-white\/15 {
-  border-color: #d8d8d3 !important;
+  border-color: rgb(var(--c-border)) !important;
 }
 
 .bg-space-950\/40,
@@ -113,7 +163,7 @@ input[type='number'] {
 .bg-space-900\/60,
 .bg-space-900\/90,
 .bg-space-900\/95 {
-  background-color: #ffffff !important;
+  background-color: rgb(var(--c-surface)) !important;
 }
 
 .bg-space-950\/80 {
@@ -121,7 +171,7 @@ input[type='number'] {
 }
 
 .bg-space-900\/95 {
-  background-color: #ffffff !important;
+  background-color: rgb(var(--c-surface)) !important;
 }
 
 .backdrop-blur,

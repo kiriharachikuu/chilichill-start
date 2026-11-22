@@ -21,6 +21,7 @@ import { onUnauthorized } from '../lib/api';
 import { PERMISSIONS, hasPermission, spaceHref } from '@spaceport/shared';
 import { LoginDialogProvider } from './LoginModal';
 import { useToast } from './Toast';
+import ThemeToggle from './ThemeToggle';
 
 interface NavItem {
   to: string;
@@ -91,15 +92,17 @@ export default function AppShell() {
     <LoginDialogProvider loginOpen={loginOpen} setLoginOpen={setLoginOpen}>
       <div className="min-h-screen bg-space-50 text-ink">
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-[230px] flex-col border-r-2 border-ink bg-white lg:flex">
-        <Link to="/" className="flex items-center gap-3 border-b border-ink px-5 py-5">
-          <img src="/logo.png" alt="厚嘴唇空间站" className="h-10 w-10 shrink-0 object-contain" />
-          <div className="min-w-0">
-            <p className="truncate text-[15px] font-black leading-tight tracking-[-0.03em]">厚嘴唇空间站</p>
-            <p className="mt-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-amber">
-              Route Board
-            </p>
-          </div>
-        </Link>
+        <div className="border-b border-ink px-5 py-5">
+          <Link to="/" className="flex min-w-0 items-center gap-3">
+            <img src="/logo.png" alt="厚嘴唇空间站" className="h-10 w-10 shrink-0 object-contain" />
+            <div className="min-w-0">
+              <p className="truncate text-[15px] font-black leading-tight tracking-[-0.03em]">厚嘴唇空间站</p>
+              <p className="mt-0.5 font-mono text-[9px] font-bold uppercase tracking-[0.16em] text-amber">
+                Route Board
+              </p>
+            </div>
+          </Link>
+        </div>
 
         <nav className="flex-1 px-0 py-4">
           {navItems.map((item) => (
@@ -191,23 +194,31 @@ export default function AppShell() {
                   )}
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={logout}
-                className="flex h-9 w-full items-center justify-center gap-2 border border-ink bg-white text-xs font-bold transition-colors hover:bg-ink hover:text-white"
-              >
-                <LogOut className="h-3.5 w-3.5" />
-                退出登录
-              </button>
+              {/* 夜间切换与操作按钮同行：主按钮占满剩余宽度，切换按钮为小方块 */}
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="flex h-9 flex-1 items-center justify-center gap-2 border border-ink bg-white text-xs font-bold transition-colors hover:bg-ink hover:text-white"
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  退出登录
+                </button>
+                <ThemeToggle className="h-9 w-9" />
+              </div>
             </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setLoginOpen(true)}
-              className="flex h-10 w-full items-center justify-center bg-ink text-sm font-black text-white transition-colors hover:bg-amber-600"
-            >
-              登录 / 注册
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setLoginOpen(true)}
+                className="flex h-10 flex-1 items-center justify-center bg-ink text-sm font-black text-white transition-colors hover:bg-amber-600"
+              >
+                登录 / 注册
+              </button>
+              {/* ! 前缀覆盖组件内默认 h-9 w-9，与登录按钮同高 */}
+              <ThemeToggle className="!h-10 !w-10" />
+            </div>
           )}
         </div>
       </aside>
@@ -221,6 +232,7 @@ export default function AppShell() {
               Route Board
             </p>
           </Link>
+          <ThemeToggle />
           <button
             type="button"
             onClick={() => setMobileOpen(true)}
@@ -243,7 +255,7 @@ export default function AppShell() {
             <p className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <span className="flex items-center gap-1.5">
                 <Heart className="h-3.5 w-3.5 text-amber" />
-                厚嘴唇空间站 · ChiliChill 粉丝导航
+                厚嘴唇空间站
               </span>
               <Link to="/about" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
                 关于本站
@@ -253,6 +265,9 @@ export default function AppShell() {
               </Link>
               <Link to="/privacy" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
                 隐私政策
+              </Link>
+              <Link to="/developers" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
+                开放平台
               </Link>
               <Link to="/blackhouse" className="underline-offset-2 transition-colors hover:text-amber hover:underline">
                 小黑屋
