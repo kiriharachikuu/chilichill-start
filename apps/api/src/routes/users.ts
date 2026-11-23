@@ -6,6 +6,9 @@ import {
   ReceivedLikeListResponse,
   type NotificationItem,
   type NotificationListResponse,
+  type OAuthAppStatus,
+  type OAuthAuthorizedApp,
+  type OAuthAuthorizedAppListResponse,
   type PenaltyStatus,
   type SpaceResourcesResponse,
 } from '@spaceport/shared';
@@ -91,6 +94,58 @@ export function userRoutes(app: FastifyInstance) {
   app.get('/api/users/me/penalty-status', { preHandler: [app.authenticate] }, async (request) => {
     const status: PenaltyStatus = await getPenaltyStatus(requireUser(request).sub);
     return status;
+  });
+
+  // 我的授权应用：按应用去重汇总已通过通行证授权的外部网站（含已过期/已禁用，便于用户了解授权历史）
+  app.get('/api/users/me/oauth-apps', { preHandler: [app.authenticate] }, async (request) => {
+    const userId = requireUser(request).sub;
+    const now = Date.now();
+
+    // 令牌按签发时间倒序：每个应用遇到的第一条即最近一次授权
+    const tokens = await prisma.oAuthAccessToken.findMany({
+      where: { userId },
+      orderBy: { createdAt: 'desc' },
+      select: {
+        appId: true,
+        createdAt: true,
+        expiresAt: true,
+        revokedAt: true,
+        app: {
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            logoUrl: true,
+            homepageUrl: true,
+            status: true,
+          },
+        },
+      },
+    });
+
+    const byApp = new Map<string, OAuthAuthorizedApp>();
+    for (const token of tokens) {
+      let item = byApp.get(token.appId);
+      if (!item) {
+        item = {
+          id: token.app.id,
+          name: token.app.name,
+          description: token.app.description,
+          logoUrl: token.app.logoUrl,
+          homepageUrl: token.app.homepageUrl,
+          status: token.app.status as OAuthAppStatus,
+          authorizedAt: token.createdAt.toISOString(),
+          active: false,
+        };
+        byApp.set(token.appId, item);
+      }
+      if (!token.revokedAt && token.expiresAt.getTime() > now) {
+        item.active = true;
+      }
+    }
+
+    const response: OAuthAuthorizedAppListResponse = { items: Array.from(byApp.values()) };
+    return response;
   });
 
   // 我的系统通知：处罚触发/撤销等，按时间倒序分页

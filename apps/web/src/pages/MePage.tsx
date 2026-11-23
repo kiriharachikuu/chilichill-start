@@ -2,11 +2,13 @@ import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
   Clock3,
+  ExternalLink,
   Eye,
   Globe2,
   Heart,
   Images,
   Inbox,
+  KeyRound,
   MessageSquare,
   Pencil,
   RefreshCw,
@@ -24,6 +26,7 @@ import {
   ReceivedLikeListResponse,
   type Group,
   type MetaResponse,
+  type OAuthAuthorizedAppListResponse,
   type Paginated,
   type Site,
   type Submission,
@@ -74,7 +77,7 @@ const SUBMISSION_TABS: { key: 'ALL' | SubmissionStatus; label: string }[] = [
   { key: 'REJECTED', label: '已驳回' },
 ];
 
-type ModuleKey = 'PROFILE' | 'SUBMISSIONS' | 'INTERACTIONS' | 'PENALTY';
+type ModuleKey = 'PROFILE' | 'OAUTH_APPS' | 'SUBMISSIONS' | 'INTERACTIONS' | 'PENALTY';
 
 const MODULES: { key: ModuleKey; label: string; icon: LucideIcon; description: string }[] = [
   {
@@ -88,6 +91,12 @@ const MODULES: { key: ModuleKey; label: string; icon: LucideIcon; description: s
     label: '通行证资料',
     icon: UserRound,
     description: '维护你在空间站的昵称、头像、坐标和自我介绍。',
+  },
+  {
+    key: 'OAUTH_APPS',
+    label: '授权应用',
+    icon: KeyRound,
+    description: '这些外部网站已通过空间站通行证授权登录，可查看授权状态与最近授权时间。',
   },
   {
     key: 'SUBMISSIONS',
@@ -876,7 +885,128 @@ function ReceivedModule() {
   );
 }
 
-// ─── 页面：三个独立模块 ─────────────────────────────────────────────────────
+// ─── 模块：通行证授权应用 ──────────────────────────────────────────────────
+
+function AuthorizedAppsModule() {
+  const [data, setData] = useState<OAuthAuthorizedAppListResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  useEffect(() => {
+    let alive = true;
+    setLoading(true);
+    setFailed(false);
+    api
+      .get<OAuthAuthorizedAppListResponse>('/api/users/me/oauth-apps')
+      .then((result) => {
+        if (alive) setData(result);
+      })
+      .catch(() => {
+        if (!alive) return;
+        setFailed(true);
+        setData(null);
+      })
+      .finally(() => {
+        if (alive) setLoading(false);
+      });
+    return () => {
+      alive = false;
+    };
+  }, [reloadKey]);
+
+  const apps = data?.items ?? [];
+
+  if (loading) {
+    return (
+      <section className="space-y-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={index} className="h-24 animate-pulse rounded-2xl border border-white/8 bg-white/[0.03]" />
+        ))}
+      </section>
+    );
+  }
+
+  if (failed) {
+    return (
+      <EmptyState
+        title="暂时读不到授权记录"
+        description="没能读取你的授权应用列表，请稍后重试。"
+        icon={RefreshCw}
+        action={
+          <Button variant="secondary" size="sm" onClick={() => setReloadKey((key) => key + 1)}>
+            重试
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (!apps.length) {
+    return (
+      <EmptyState
+        title="还没有授权过任何应用"
+        description="当你在外部网站使用空间站通行证登录并确认授权后，授权记录会出现在这里。"
+        icon={KeyRound}
+      />
+    );
+  }
+
+  return (
+    <section className="space-y-3">
+      {apps.map((app) => {
+        const statusBadge =
+          app.status !== 'ACTIVE'
+            ? { tone: 'coral' as const, label: '应用已禁用' }
+            : app.active
+              ? { tone: 'mint' as const, label: '授权有效' }
+              : { tone: 'neutral' as const, label: '授权已过期' };
+        return (
+          <Card key={app.id} hover={false} className="flex flex-col gap-4 sm:flex-row sm:items-center">
+            <div className="flex min-w-0 flex-1 items-start gap-3">
+              {app.logoUrl ? (
+                <img
+                  src={app.logoUrl}
+                  alt={`${app.name} 图标`}
+                  loading="lazy"
+                  className="h-11 w-11 shrink-0 rounded-xl border border-white/10 object-cover"
+                />
+              ) : (
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04]">
+                  <KeyRound className="h-5 w-5 text-violet" />
+                </span>
+              )}
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="truncate text-sm font-medium text-ink">{app.name}</span>
+                  <Badge tone={statusBadge.tone}>{statusBadge.label}</Badge>
+                </div>
+                {app.description ? (
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-muted">{app.description}</p>
+                ) : null}
+                <p className="mt-1.5 text-[11px] text-muted/70">
+                  最近授权 {formatDateTime(app.authorizedAt)}
+                </p>
+              </div>
+            </div>
+            {app.homepageUrl ? (
+              <a
+                href={app.homepageUrl}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex shrink-0 items-center gap-1.5 text-xs text-amber transition hover:text-ink"
+              >
+                <ExternalLink className="h-3.5 w-3.5" /> 访问应用
+              </a>
+            ) : null}
+          </Card>
+        );
+      })}
+    </section>
+  );
+}
+
+// ─── 页面：独立模块 ─────────────────────────────────────────────────────────
 
 export default function MePage() {
   const { user, loading: authLoading } = useAuth();
@@ -885,6 +1015,7 @@ export default function MePage() {
   // 访问过的模块保持挂载（仅隐藏），切换回来时不丢失编辑中的草稿与列表状态
   const [visited, setVisited] = useState<Record<ModuleKey, boolean>>({
     PROFILE: false,
+    OAUTH_APPS: false,
     SUBMISSIONS: false,
     INTERACTIONS: true,
     PENALTY: false,
@@ -908,7 +1039,7 @@ export default function MePage() {
       <SectionHeading
         eyebrow="My Orbit"
         title="个人中心"
-        description="管理通行证资料、追踪投稿审核进度，查看你收到的点赞与评论。"
+        description="管理通行证资料与授权应用、追踪投稿审核进度，查看你收到的点赞与评论。"
       />
 
       <nav
@@ -939,6 +1070,12 @@ export default function MePage() {
       <div className={activeModule === 'PROFILE' ? '' : 'hidden'}>
         <ProfileEditor />
       </div>
+
+      {visited.OAUTH_APPS ? (
+        <div className={activeModule === 'OAUTH_APPS' ? '' : 'hidden'}>
+          <AuthorizedAppsModule />
+        </div>
+      ) : null}
 
       {visited.SUBMISSIONS ? (
         <div className={activeModule === 'SUBMISSIONS' ? '' : 'hidden'}>

@@ -1134,3 +1134,20 @@ export interface OAuthBasicUser {
   nickname: string;
   avatarUrl: string | null;
 }
+
+// 当前用户已授权的接入应用（按应用去重，取最近一次授权时间）
+export interface OAuthAuthorizedApp {
+  id: string;
+  name: string;
+  description: string | null;
+  logoUrl: string | null;
+  homepageUrl: string | null;
+  status: OAuthAppStatus;
+  authorizedAt: string;
+  // 是否存在未过期且未吊销的访问令牌
+  active: boolean;
+}
+
+export interface OAuthAuthorizedAppListResponse {
+  items: OAuthAuthorizedApp[];
+}

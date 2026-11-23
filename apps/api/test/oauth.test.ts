@@ -467,3 +467,39 @@ describe('管理后台接入应用 API', () => {
     clientSecret = newSecret;
   });
 });
+
+describe('我的授权应用', () => {
+  it('授权换取令牌后，应用出现在授权应用列表', async () => {
+    const { redirectUrl } = await authorizeAndConfirm({ state: 'list-check' });
+    const tokenRes = await exchangeToken({
+      client_id: clientId,
+      client_secret: clientSecret,
+      code: extractCode(redirectUrl),
+      redirect_uri: CALLBACK,
+    });
+    expect(tokenRes.statusCode, tokenRes.body).toBe(200);
+
+    const res = await app.inject({
+      method: 'GET',
+      url: '/api/users/me/oauth-apps',
+      headers: { cookie: `spaceport_token=${userCookie}` },
+    });
+    expect(res.statusCode, res.body).toBe(200);
+
+    const items = (res.json() as {
+      items: Array<{ id: string; name: string; status: string; active: boolean; authorizedAt: string }>;
+    }).items;
+    const target = items.find((item) => item.name === '第三方测试站');
+    expect(target).toBeTruthy();
+    expect(target!.status).toBe('ACTIVE');
+    expect(target!.active).toBe(true);
+    expect(Number.isNaN(Date.parse(target!.authorizedAt))).toBe(false);
+    // 同一应用多次授权只出现一次
+    expect(items.filter((item) => item.name === '第三方测试站')).toHaveLength(1);
+  });
+
+  it('未登录访问返回 401', async () => {
+    const res = await app.inject({ method: 'GET', url: '/api/users/me/oauth-apps' });
+    expect(res.statusCode).toBe(401);
+  });
+});
