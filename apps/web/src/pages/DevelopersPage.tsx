@@ -5,6 +5,7 @@ import {
   ChevronRight,
   CircleHelp,
   Download,
+  ExternalLink,
   FileCode2,
   KeyRound,
   Lock,
@@ -20,6 +21,7 @@ import { buttonClass } from '../components/Button';
 
 // SDK 下载产物路径（构建时由 public/ 原样拷贝，无需打包）
 const SDK_URL = '/sdk/spaceport-open-sdk.js';
+const DEMO_URL = 'https://oauth-demo.chikuu.top/';
 const SDK_VERSION = 'v1.0.0';
 const OAUTH_CODE_TTL = '10 分钟';
 const OAUTH_TOKEN_TTL = '7 天';
@@ -197,10 +199,21 @@ export default function DevelopersPage() {
         title="空间站开放平台"
         description="其他网站可接入空间站通行证，实现「使用空间站通行证登录」。基于标准 OAuth2 授权码模式，用户逐次确认授权，第三方仅获取基础信息。"
         action={
-          <a href={SDK_URL} download className={buttonClass({ variant: 'secondary', size: 'sm' })}>
-            <Download className="h-4 w-4" />
-            下载 SDK {SDK_VERSION}
-          </a>
+          <div className="flex flex-wrap items-center gap-2">
+            <a href={SDK_URL} download className={buttonClass({ variant: 'secondary', size: 'sm' })}>
+              <Download className="h-4 w-4" />
+              下载 SDK {SDK_VERSION}
+            </a>
+            <a
+              href={DEMO_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+              className={buttonClass({ variant: 'ghost', size: 'sm' })}
+            >
+              <ExternalLink className="h-4 w-4" />
+              在线演示
+            </a>
+          </div>
         }
       />
 
