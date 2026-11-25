@@ -116,7 +116,14 @@ export function publicGalleryRoutes(app: FastifyInstance) {
       });
 
       if (existing) {
-        await prisma.galleryLike.delete({ where: { id: existing.id } });
+        try {
+          await prisma.galleryLike.delete({ where: { id: existing.id } });
+        } catch (error) {
+          // 并发取消点赞时记录可能已被删除（P2025），视为已取消即可
+          if ((error as { code?: string }).code !== 'P2025') {
+            throw error;
+          }
+        }
       } else {
         try {
           await prisma.galleryLike.create({ data: { imageId, userId } });
@@ -128,8 +135,15 @@ export function publicGalleryRoutes(app: FastifyInstance) {
         }
       }
 
-      const likeCount = await prisma.galleryLike.count({ where: { imageId } });
-      const state: GalleryLikeState = { imageId, liked: !existing, likeCount };
+      // 以写入后的实际状态为准，避免并发下基于请求开始时的快照返回过期 liked
+      const [likeCount, current] = await Promise.all([
+        prisma.galleryLike.count({ where: { imageId } }),
+        prisma.galleryLike.findUnique({
+          where: { imageId_userId: { imageId, userId } },
+          select: { id: true },
+        }),
+      ]);
+      const state: GalleryLikeState = { imageId, liked: current !== null, likeCount };
       return state;
     },
   );
@@ -206,12 +220,13 @@ export function publicGalleryRoutes(app: FastifyInstance) {
       }
 
       // 评论删除的同时把关联举报标记为已处理（评论已删除，无需再人工跟进）
+      // 必须先 updateMany 再 delete：外键为 SetNull，先删评论会把 commentId 置空导致匹配不到举报
       await prisma.$transaction([
-        prisma.galleryComment.delete({ where: { id: comment.id } }),
         prisma.commentReport.updateMany({
           where: { commentId: comment.id, status: 'PENDING' },
           data: { status: 'RESOLVED', handledAt: new Date() },
         }),
+        prisma.galleryComment.delete({ where: { id: comment.id } }),
       ]);
 
       const commentCount = await prisma.galleryComment.count({ where: { imageId: comment.imageId } });

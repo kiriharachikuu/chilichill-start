@@ -82,6 +82,10 @@ export async function assertTagsValid(
 ): Promise<void> {
   const uniqueIds = [...new Set(tagIds.filter((id) => id.trim().length > 0))];
   if (uniqueIds.length === 0) {
+    // 传入了标签但全为空白：不能静默放行，否则未过滤的 ID 写入时会触发外键错误
+    if (tagIds.length > 0) {
+      throw new HttpError(400, 'INVALID_TAGS', '存在无效标签');
+    }
     return;
   }
 

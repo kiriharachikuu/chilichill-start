@@ -132,7 +132,11 @@ export function adminGalleryRoutes(app: FastifyInstance) {
         throw new HttpError(404, 'NOT_FOUND', '作品不存在');
       }
 
-      await prisma.galleryImage.delete({ where: { id } });
+      // 画廊投稿的 targetId 无外键级联，需手动清理，避免审核历史指向已删除的作品
+      await prisma.$transaction([
+        prisma.submission.deleteMany({ where: { entityType: 'GALLERY', targetId: id } }),
+        prisma.galleryImage.delete({ where: { id } }),
+      ]);
 
       return reply.status(204).send();
     },

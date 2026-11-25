@@ -122,37 +122,45 @@ async function approveOne(
 
 /** 驳回单条投稿（认领 → 审计 → 清理文件），单条接口与批量接口共用 */
 async function rejectOne(id: string, user: AuthUser, reviewNote: string, log: FastifyInstance['log']): Promise<void> {
-  const submission = await prisma.submission.findUnique({ where: { id } });
-  if (!submission) {
-    throw new HttpError(404, 'NOT_FOUND', '投稿不存在');
-  }
-  const isSelfReview = submission.submitterId === user.sub;
-  // 自审限制：仅持有 review:self 权限（管理员）可审核自己提交的投稿
-  if (isSelfReview && !hasPermission(user.role, PERMISSIONS.REVIEW_SELF)) {
-    throw new HttpError(403, 'SELF_REVIEW_FORBIDDEN', '不能审核自己提交的投稿');
-  }
+  // 认领与审计包在同一事务：审计写入失败时回滚驳回，避免状态与响应不一致
+  const submission = await prisma.$transaction(async (tx) => {
+    const found = await tx.submission.findUnique({ where: { id } });
+    if (!found) {
+      throw new HttpError(404, 'NOT_FOUND', '投稿不存在');
+    }
+    const isSelfReview = found.submitterId === user.sub;
+    // 自审限制：仅持有 review:self 权限（管理员）可审核自己提交的投稿
+    if (isSelfReview && !hasPermission(user.role, PERMISSIONS.REVIEW_SELF)) {
+      throw new HttpError(403, 'SELF_REVIEW_FORBIDDEN', '不能审核自己提交的投稿');
+    }
 
-  const claimed = await prisma.submission.updateMany({
-    where: { id, status: 'PENDING' },
-    data: {
-      status: 'REJECTED',
-      reviewerId: user.sub,
-      reviewedAt: new Date(),
-      reviewNote,
-    },
-  });
+    const claimed = await tx.submission.updateMany({
+      where: { id, status: 'PENDING' },
+      data: {
+        status: 'REJECTED',
+        reviewerId: user.sub,
+        reviewedAt: new Date(),
+        reviewNote,
+      },
+    });
 
-  if (claimed.count === 0) {
-    throw new HttpError(409, 'CONFLICT', '该投稿已被处理');
-  }
+    if (claimed.count === 0) {
+      throw new HttpError(409, 'CONFLICT', '该投稿已被处理');
+    }
 
-  await recordAudit({
-    actorId: user.sub,
-    actorNickname: user.nickname ?? '',
-    action: 'submission.reject',
-    targetType: 'Submission',
-    targetId: id,
-    detail: { entityType: submission.entityType, mode: submission.mode, reviewNote, selfReview: isSelfReview },
+    await recordAudit(
+      {
+        actorId: user.sub,
+        actorNickname: user.nickname ?? '',
+        action: 'submission.reject',
+        targetType: 'Submission',
+        targetId: id,
+        detail: { entityType: found.entityType, mode: found.mode, reviewNote, selfReview: isSelfReview },
+      },
+      tx,
+    );
+
+    return found;
   });
 
   // CREATE 投稿被驳回视为垃圾信号：清理其上传文件（best-effort，不影响驳回结果）

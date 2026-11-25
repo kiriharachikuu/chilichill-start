@@ -311,7 +311,8 @@ export interface NavModule {
   enabled: boolean;
 }
 
-const tagIds = z.array(z.string().min(1)).max(8).default([]);
+// trim 防止空白字符串绕过 min(1) 校验，写入时触发外键约束错误
+const tagIds = z.array(z.string().trim().min(1)).max(8).default([]);
 
 // 历届活动（后台维护，首页活动看板展示）
 export interface Activity {
@@ -405,7 +406,17 @@ export const groupPayloadSchema = z
       .optional()
       .or(z.literal(''))
       .nullable(),
-    qrcodeUrl: z.string().trim().max(300).optional().nullable(),
+    qrcodeUrl: z
+      .string()
+      .trim()
+      .max(300)
+      // 投稿端收紧二维码地址形态：仅允许本地上传文件或 http(s) 链接，
+      // 配合服务端代理下载时的逐跳公网校验，防 SSRF
+      .refine((value) => !value || value.startsWith('/uploads/') || /^https?:\/\//.test(value), {
+        message: '二维码地址仅支持上传文件或 http(s) 链接',
+      })
+      .optional()
+      .nullable(),
     avatarUrl: z.string().trim().max(300).optional().nullable(),
     tags: tagIds,
   })
@@ -456,7 +467,7 @@ export const sitePayloadSchema = z.object({
   url: z.string().trim().url('网站链接格式不正确').max(300),
   description: z.string().trim().min(5, '简介至少 5 个字').max(200),
   coverUrl: z.string().trim().max(300).optional().or(z.literal('')).nullable(),
-  tags: z.array(z.string().min(1)).min(1, '至少选择一个标签').max(8),
+  tags: z.array(z.string().trim().min(1)).min(1, '至少选择一个标签').max(8),
 });
 export type SitePayload = z.infer<typeof sitePayloadSchema>;
 

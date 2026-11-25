@@ -10,7 +10,11 @@ export function optionalEnumQuery<U extends string, T extends readonly [U, ...U[
   return z.preprocess(emptyToUndefined, z.enum(values).optional());
 }
 
-export const pageQuery = z.preprocess(emptyToUndefined, z.coerce.number().int().min(1).default(1));
+// 上限防止超大页码使 skip 溢出（Infinity / 超出 SQLite int64）导致 Prisma 500
+export const pageQuery = z.preprocess(
+  emptyToUndefined,
+  z.coerce.number().int().min(1).max(1_000_000).default(1),
+);
 
 export function pageSizeQuery(defaultValue: number, maxPageSize: number) {
   return z.preprocess(
