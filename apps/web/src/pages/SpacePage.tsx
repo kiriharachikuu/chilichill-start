@@ -12,6 +12,7 @@ import {
 import { api } from '../lib/api';
 import { formatDateTime, gradientFor, initialOf } from '../lib/format';
 import { useGalleryInteractions } from '../lib/useGalleryInteractions';
+import { useToast } from '../components/Toast';
 import Card from '../components/Card';
 import EmptyState from '../components/EmptyState';
 import GalleryCard from '../components/GalleryCard';
@@ -25,8 +26,9 @@ const PAGE_SIZE = 12;
 
 export default function SpacePage() {
   const { uid } = useParams<{ uid: string }>();
-  const { likePendingId, resolveLike, toggleLike, handleCommentCountChange, reset } =
+  const { likePendingIds, resolveLike, toggleLike, handleCommentCountChange, commentCounts, reset } =
     useGalleryInteractions();
+  const toast = useToast();
   const [data, setData] = useState<SpaceResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [failed, setFailed] = useState(false);
@@ -94,6 +96,7 @@ export default function SpacePage() {
         if (!alive) return;
         setItems([]);
         setTotal(0);
+        toast.error('内容加载失败，请稍后再试');
       })
       .finally(() => {
         if (alive) setItemsLoading(false);
@@ -101,7 +104,7 @@ export default function SpacePage() {
     return () => {
       alive = false;
     };
-  }, [data, activeTab, page, uid]);
+  }, [data, activeTab, page, uid, toast]);
 
   const handleTabChange = (key: string) => {
     if (key === tab) return;
@@ -138,11 +141,22 @@ export default function SpacePage() {
     [measured],
   );
 
+  // 评论数以本地覆盖态优先，发/删评论后卡片与弹窗即时更新
   const displayedGalleryImages =
     activeTab === 'gallery'
-      ? (items as GalleryImage[]).map((image) => ({ ...image, ...resolveLike(image) }))
+      ? (items as GalleryImage[]).map((image) => ({
+          ...image,
+          ...resolveLike(image),
+          commentCount: commentCounts[image.id] ?? image.commentCount,
+        }))
       : [];
-  const selectedView = selected ? { ...selected, ...resolveLike(selected) } : null;
+  const selectedView = selected
+    ? {
+        ...selected,
+        ...resolveLike(selected),
+        commentCount: commentCounts[selected.id] ?? selected.commentCount,
+      }
+    : null;
 
   if (loading) {
     return (
@@ -303,7 +317,7 @@ export default function SpacePage() {
             renderItem={(image) => (
               <GalleryCard
                 image={image}
-                likePending={likePendingId === image.id}
+                likePending={Boolean(likePendingIds[image.id])}
                 onOpen={setSelected}
                 onToggleLike={(target) => void toggleLike(target)}
                 onMeasure={handleMeasure}
@@ -322,7 +336,7 @@ export default function SpacePage() {
 
       <GalleryDetailModal
         image={selectedView}
-        likePending={selected ? likePendingId === selected.id : false}
+        likePending={selected ? Boolean(likePendingIds[selected.id]) : false}
         onClose={() => setSelected(null)}
         onToggleLike={(target) => void toggleLike(target)}
         onCommentCountChange={handleCommentCountChange}

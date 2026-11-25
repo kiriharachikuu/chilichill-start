@@ -107,9 +107,9 @@ async function requestOnce<T>(options: RequestOptions): Promise<T> {
     // 调用方主动取消：原样抛出让调用方自行处理
     if (signal?.aborted) throw error;
     if (error instanceof Error && error.name === 'AbortError') {
-      throw new ApiError(0, 'TIMEOUT', '网络连接超时，请稍后重试');
+      throw new ApiError(0, '网络连接超时，请稍后重试', 'TIMEOUT');
     }
-    throw new ApiError(0, 'NETWORK', '网络连接失败，请检查网络后重试');
+    throw new ApiError(0, '网络连接失败，请检查网络后重试', 'NETWORK');
   } finally {
     clearTimeout(timer);
     signal?.removeEventListener('abort', onOuterAbort);

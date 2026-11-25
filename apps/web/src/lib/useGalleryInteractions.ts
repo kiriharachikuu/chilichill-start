@@ -18,7 +18,8 @@ export function useGalleryInteractions() {
 
   const [likeStates, setLikeStates] = useState<Record<string, GalleryLikeStateView>>({});
   const [commentCounts, setCommentCounts] = useState<Record<string, number>>({});
-  const [likePendingId, setLikePendingId] = useState<string | null>(null);
+  // 按图片 ID 记录在途点赞，互不阻塞
+  const [likePendingIds, setLikePendingIds] = useState<Record<string, boolean>>({});
 
   /** 数据整体刷新（换页/换人）后清空本地覆盖态 */
   const reset = useCallback(() => {
@@ -38,14 +39,14 @@ export function useGalleryInteractions() {
         openLogin();
         return;
       }
-      if (likePendingId) return;
+      if (likePendingIds[image.id]) return;
       const current = resolveLike(image);
       const next: GalleryLikeStateView = {
         liked: !current.liked,
         likeCount: current.likeCount + (current.liked ? -1 : 1),
       };
       setLikeStates((prev) => ({ ...prev, [image.id]: next }));
-      setLikePendingId(image.id);
+      setLikePendingIds((prev) => ({ ...prev, [image.id]: true }));
       try {
         const res = await api.post<GalleryLikeState>(`/api/gallery/${image.id}/like`);
         setLikeStates((prev) => ({
@@ -56,10 +57,14 @@ export function useGalleryInteractions() {
         setLikeStates((prev) => ({ ...prev, [image.id]: current }));
         toast.error(error instanceof ApiError ? error.message : '操作失败，请稍后再试');
       } finally {
-        setLikePendingId(null);
+        setLikePendingIds((prev) => {
+          const next = { ...prev };
+          delete next[image.id];
+          return next;
+        });
       }
     },
-    [likePendingId, resolveLike, openLogin, toast, user],
+    [likePendingIds, resolveLike, openLogin, toast, user],
   );
 
   const handleCommentCountChange = useCallback((imageId: string, count: number) => {
@@ -67,7 +72,7 @@ export function useGalleryInteractions() {
   }, []);
 
   return {
-    likePendingId,
+    likePendingIds,
     resolveLike,
     toggleLike,
     handleCommentCountChange,

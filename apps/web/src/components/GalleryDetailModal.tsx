@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { Flag, Heart, Loader2, MessageSquare, MessageSquareWarning, SendHorizontal, Trash2 } from 'lucide-react';
 import {
@@ -41,7 +41,8 @@ export default function GalleryDetailModal({
   const { openLogin } = useLoginDialog();
 
   const [comments, setComments] = useState<GalleryCommentItem[]>([]);
-  const [commentTotal, setCommentTotal] = useState(0);
+  // null 表示尚未加载，与「已加载为 0」区分，避免删光评论后回退到过期卡片值
+  const [commentTotal, setCommentTotal] = useState<number | null>(null);
   const [commentPage, setCommentPage] = useState(1);
   const [hasMoreComments, setHasMoreComments] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
@@ -55,6 +56,8 @@ export default function GalleryDetailModal({
   const [reportReason, setReportReason] = useState('');
   const [reportSubmitting, setReportSubmitting] = useState(false);
   const [reportedIds, setReportedIds] = useState<Record<string, boolean>>({});
+  // 当前评论请求的 AbortController（初次加载 / 重试 / 加载更多共用）
+  const commentsAbortRef = useRef<AbortController | null>(null);
 
   const fetchComments = useCallback(
     async (imageId: string, page: number, append: boolean, signal?: AbortSignal) => {
@@ -88,8 +91,11 @@ export default function GalleryDetailModal({
           toast.error('评论加载失败，请稍后再试');
         }
       } finally {
-        setCommentsLoading(false);
-        setLoadingMore(false);
+        // 已被取消的请求不清 loading，避免误清新请求的加载态
+        if (!signal?.aborted) {
+          setCommentsLoading(false);
+          setLoadingMore(false);
+        }
       }
       // toast 为稳定引用，无需加入依赖
       // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -100,10 +106,12 @@ export default function GalleryDetailModal({
   // 打开/切换图片时重置评论状态；依赖 image.id 而非 image 对象，
   // 避免父组件重建对象（点赞、评论数变更）触发重复请求风暴。
   useEffect(() => {
+    // 切换/关闭图片时取消仍在途的重试/加载更多请求
+    commentsAbortRef.current?.abort();
     const imageId = image?.id;
     if (!imageId) {
       setComments([]);
-      setCommentTotal(0);
+      setCommentTotal(null);
       setCommentPage(1);
       setHasMoreComments(false);
       setContent('');
@@ -113,9 +121,27 @@ export default function GalleryDetailModal({
       return;
     }
     const controller = new AbortController();
+    commentsAbortRef.current = controller;
     void fetchComments(imageId, 1, false, controller.signal);
     return () => controller.abort();
   }, [image?.id, fetchComments]);
+
+  // 重试 / 加载更多同样挂到 AbortController，防止切图时旧评论串入新图
+  const retryComments = () => {
+    if (!image) return;
+    commentsAbortRef.current?.abort();
+    const controller = new AbortController();
+    commentsAbortRef.current = controller;
+    void fetchComments(image.id, 1, false, controller.signal);
+  };
+
+  const loadMoreComments = () => {
+    if (!image) return;
+    commentsAbortRef.current?.abort();
+    const controller = new AbortController();
+    commentsAbortRef.current = controller;
+    void fetchComments(image.id, commentPage + 1, true, controller.signal);
+  };
 
   const submitComment = async () => {
     if (!image) return;
@@ -143,8 +169,8 @@ export default function GalleryDetailModal({
     }
   };
 
-  // 已加载评论数优先；未加载完成时回退到卡片上的计数
-  const commentCount = commentTotal || image?.commentCount || 0;
+  // 已加载评论数优先（含 0）；仅未加载（null）时回退到卡片上的计数
+  const commentCount = commentTotal ?? image?.commentCount ?? 0;
 
   // 删除自己的评论：二次确认，即时生效且不可恢复
   const confirmDeleteComment = async () => {
@@ -287,7 +313,7 @@ export default function GalleryDetailModal({
                     variant="ghost"
                     size="sm"
                     className="mt-2"
-                    onClick={() => void fetchComments(image.id, 1, false)}
+                    onClick={retryComments}
                   >
                     重试
                   </Button>
@@ -400,7 +426,7 @@ export default function GalleryDetailModal({
                   {hasMoreComments ? (
                     <button
                       type="button"
-                      onClick={() => void fetchComments(image.id, commentPage + 1, true)}
+                      onClick={loadMoreComments}
                       disabled={loadingMore}
                       className="mx-auto flex items-center gap-1.5 border border-white/10 bg-white/[0.02] px-3 py-1.5 text-[11px] font-bold text-muted transition-colors hover:border-amber hover:text-amber disabled:opacity-60"
                     >

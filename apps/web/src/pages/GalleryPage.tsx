@@ -10,13 +10,15 @@ import Pagination from '../components/Pagination';
 import Button from '../components/Button';
 import SectionHeading from '../components/SectionHeading';
 import { useGalleryInteractions } from '../lib/useGalleryInteractions';
+import { useToast } from '../components/Toast';
 
 const PAGE_SIZE = 35;
 const SKELETON_HEIGHTS = [240, 320, 280, 360, 260, 300, 340, 240, 280, 320, 260, 300];
 
 export default function GalleryPage() {
-  const { likePendingId, resolveLike, toggleLike, handleCommentCountChange, reset } =
+  const { likePendingIds, resolveLike, toggleLike, handleCommentCountChange, commentCounts, reset } =
     useGalleryInteractions();
+  const toast = useToast();
 
   const [images, setImages] = useState<GalleryImage[]>([]);
   const [total, setTotal] = useState(0);
@@ -46,12 +48,14 @@ export default function GalleryPage() {
         reset();
       } catch {
         setFailed(true);
+        // 已有数据时错误门不渲染，用 toast 保证刷新失败有可见反馈
+        toast.error('画廊加载失败，请稍后再试');
       } finally {
         loadingRef.current = false;
         setInitialLoading(false);
       }
     },
-    [reset],
+    [reset, toast],
   );
 
   useEffect(() => {
@@ -115,8 +119,19 @@ export default function GalleryPage() {
     [measured],
   );
 
-  const selectedView = selected ? { ...selected, ...resolveLike(selected) } : null;
-  const displayedImages = images.map((image) => ({ ...image, ...resolveLike(image) }));
+  // 评论数以本地覆盖态优先，发/删评论后卡片与弹窗即时更新
+  const selectedView = selected
+    ? {
+        ...selected,
+        ...resolveLike(selected),
+        commentCount: commentCounts[selected.id] ?? selected.commentCount,
+      }
+    : null;
+  const displayedImages = images.map((image) => ({
+    ...image,
+    ...resolveLike(image),
+    commentCount: commentCounts[image.id] ?? image.commentCount,
+  }));
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:py-10">
@@ -201,7 +216,7 @@ export default function GalleryPage() {
             renderItem={(image) => (
               <GalleryCard
                 image={image}
-                likePending={likePendingId === image.id}
+                likePending={Boolean(likePendingIds[image.id])}
                 onOpen={setSelected}
                 onToggleLike={(target) => void toggleLike(target)}
                 onMeasure={handleMeasure}
@@ -224,7 +239,7 @@ export default function GalleryPage() {
 
       <GalleryDetailModal
         image={selectedView}
-        likePending={selected ? likePendingId === selected.id : false}
+        likePending={selected ? Boolean(likePendingIds[selected.id]) : false}
         onClose={() => setSelected(null)}
         onToggleLike={(target) => void toggleLike(target)}
         onCommentCountChange={handleCommentCountChange}

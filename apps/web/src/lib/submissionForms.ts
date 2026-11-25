@@ -261,14 +261,14 @@ export function galleryFormFromPayload(
   };
 }
 
-// 标签：逗号/空格分隔，去重，最多 8 个
+// 标签：逗号/空格分隔，去重；不在此截断，超过 8 个由校验层报错提示
 export function parseGalleryTags(input: string): string[] {
   const seen = new Set<string>();
   for (const raw of input.split(/[,，、\s]+/)) {
     const tag = raw.trim().replace(/^#/, '');
     if (tag && !seen.has(tag)) seen.add(tag);
   }
-  return Array.from(seen).slice(0, 8);
+  return Array.from(seen);
 }
 
 export function validateGalleryForm(form: GalleryFormState): {

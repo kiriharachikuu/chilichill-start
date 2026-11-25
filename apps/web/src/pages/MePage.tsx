@@ -214,21 +214,29 @@ function SubmissionDrawer({ submission, meta, onClose, onDone }: DrawerProps) {
     if (!current) return;
     setServerError('');
     let payload: Record<string, unknown> | undefined;
+    let errors: FieldErrors = {};
 
     if (current.entityType === 'GALLERY' && galleryForm) {
       const result = validateGalleryForm(galleryForm);
       setErrors(result.errors);
+      errors = result.errors;
       payload = result.payload as Record<string, unknown> | undefined;
     } else if (current.entityType === 'GROUP' && groupForm) {
       const result = validateGroupForm(groupForm);
       setErrors(result.errors);
+      errors = result.errors;
       payload = result.payload;
     } else if (current.entityType === 'SITE' && siteForm) {
       const result = validateSiteForm(siteForm);
       setErrors(result.errors);
+      errors = result.errors;
       payload = result.payload;
     }
-    if (!payload) return;
+    if (!payload) {
+      // 错误文案可能不在视口内，用 toast 保证有可见反馈
+      toast.error(Object.values(errors)[0] ?? '表单还有未完成的必填项，请检查标红提示');
+      return;
+    }
 
     setSubmitting(true);
     try {

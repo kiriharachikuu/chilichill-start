@@ -84,7 +84,11 @@ export default function SubmitPage() {
     if (tab === 'GROUP') {
       const result = validateGroupForm(groupForm);
       setGroupErrors(result.errors);
-      if (!result.payload) return;
+      if (!result.payload) {
+        // 错误文案渲染在表单上方，长表单滚动后可能不在视口内，用 toast 保证有可见反馈
+        toast.error(Object.values(result.errors)[0] ?? '表单还有未完成的必填项，请检查标红提示');
+        return;
+      }
       setSubmitting(true);
       try {
         await api.post<{ item: Submission }>('/api/submissions', {
@@ -105,7 +109,10 @@ export default function SubmitPage() {
     if (tab === 'GALLERY') {
       const result = validateGalleryForm(galleryForm);
       setGalleryErrors(result.errors);
-      if (!result.payload) return;
+      if (!result.payload) {
+        toast.error(Object.values(result.errors)[0] ?? '表单还有未完成的必填项，请检查标红提示');
+        return;
+      }
       setSubmitting(true);
       try {
         await api.post<{ item: Submission }>('/api/submissions', {
@@ -125,7 +132,10 @@ export default function SubmitPage() {
 
     const result = validateSiteForm(siteForm);
     setSiteErrors(result.errors);
-    if (!result.payload) return;
+    if (!result.payload) {
+      toast.error(Object.values(result.errors)[0] ?? '表单还有未完成的必填项，请检查标红提示');
+      return;
+    }
     setSubmitting(true);
     try {
       await api.post<{ item: Submission }>('/api/submissions', {

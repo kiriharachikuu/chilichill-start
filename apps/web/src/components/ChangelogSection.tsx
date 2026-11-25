@@ -117,7 +117,8 @@ export default function ChangelogSection() {
   };
 
   const loadMore = () => {
-    if (timelineStatus !== 'ready' || !hasMore) return;
+    // error 态放行，保证「加载更多」失败后的重试按钮可用
+    if ((timelineStatus !== 'ready' && timelineStatus !== 'error') || !hasMore) return;
     const next = timelinePage + 1;
     setTimelineStatus('loadingMore');
     fetchChangelogPage(next)
